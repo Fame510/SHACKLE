@@ -8,9 +8,9 @@ version = "0.1.0"
 description = "A lightweight, framework-agnostic runtime circuit breaker for LLM agents."
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "MIT" }
+license = { text = "AGPL-3.0" }
 authors = [
-    { name = "Sovereign Logic", email = "engineering@sovereignlogic.io" }
+    { name = "Dante Bullock", email = "engineering@sovereignlogic.io" }
 ]
 classifiers = [
     "Development Status :: 4 - Beta",

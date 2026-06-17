@@ -1,10 +1,28 @@
 # ⛓️ SHACKLE
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: AGPLv3](https://img.shields.io/badge/License-AGPLv3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 
 > **The 1-Line Runtime Circuit Breaker for Autonomous AI Agents.**
 > Stop runaway token loops, unhandled tool cascades, and accidental $4,000 API bills before they happen.
+
+---
+
+## Provenance
+
+SHACKLE was built by **Dante Bullock**, a 52-year-old self-taught systems architect and
+engineer out of Oakland, California. No venture capital. No corporate incubator.
+Just raw necessity and a refusal to watch autonomous agents burn money in
+silent infinite loops.
+
+Rather than guessing what the agent ecosystem needed, Sovereign Logic used
+real-time web scraping and community sentiment mining to audit the issue
+trackers of CrewAI, AutoGen, and LangGraph — mapping the exact systemic
+failures affecting developers in production, then building the drop-in
+circuit breaker to fix them.
+
+This is infrastructure built by a developer, for developers — sovereign,
+lean, and zero-bloat.
 
 ---
 
@@ -126,9 +144,32 @@ Select action (R/S/A):
 
 ---
 
+## ⚠️ Disclaimer of Liability
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+BY USING THIS SOFTWARE, YOU ACKNOWLEDGE THAT LLM ORCHESTRATION IS INHERENTLY
+NON-DETERMINISTIC. SHACKLE IS A BEST-EFFORT CIRCUIT BREAKER AND DOES NOT
+GUARANTEE PREVENTING ALL API SPEND OVERRUNS. YOU REMAIN SOLELY RESPONSIBLE FOR
+MONITORING YOUR OWN API LIMITS AND USAGE BILLS.
+
 ## 📄 License
 
-MIT. Run your compute freely, sovereignly, and with total safety.
+AGPLv3. Copyright (C) 2026 Dante Bullock, Sovereign Logic.
+
+This is free software: you can redistribute it and/or modify it under the
+terms of the GNU Affero General Public License as published by the Free
+Software Foundation, either version 3 of the License, or (at your option)
+any later version.
+
+For commercial licensing (closed-source use, white-label integration,
+enterprise deployment), contact: engineering@sovereignlogic.io
 
 ---
 

@@ -6,9 +6,9 @@ setup(
     description="A lightweight, framework-agnostic runtime circuit breaker for LLM agents.",
     long_description=open("README.md").read(),
     long_description_content_type="text/markdown",
-    author="Sovereign Logic",
+    author="Dante Bullock",
     author_email="engineering@sovereignlogic.io",
-    license="MIT",
+    license="AGPL-3.0",
     packages=find_packages(),
     python_requires=">=3.10",
     install_requires=[
