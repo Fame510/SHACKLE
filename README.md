@@ -20,7 +20,7 @@ consultant who'll Google "what is CrewAI" on your dime:
 
 ### 💳 Ready to Start? Pay Here
 
-**[→ Pay $2,500 — SHACKLE Implementation + Architecture Audit ←](https://buy.stripe.com/test_28E5kC52Wa9A9Z52NJak000)**
+**[→ Pay $2,500 — SHACKLE Implementation + Architecture Audit ←](https://buy.stripe.com/6oU28q54DbsXdpV6Hy9sk00)**
 
 *After payment, email docspoc101@gmail.com with your repo link. I'll respond
 within 4 hours to schedule your architecture audit.*
