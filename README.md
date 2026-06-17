@@ -208,6 +208,21 @@ See [LICENSE](LICENSE) for full terms.
 
 ---
 
+## 👤 Creator
+
+**Dante Bullock** — 52-year-old self-taught systems architect from Oakland, California.
+Founder of Sovereign Logic. Built SHACKLE out of raw necessity after watching
+autonomous agents burn thousands in silent API loops with no native circuit
+breaker in sight.
+
+> *"I don't wait for VC validation. I scrape issue trackers, find the bleeding,
+> and build the tourniquet."*
+
+GitHub: [@Fame510](https://github.com/Fame510)
+Contact: engineering@sovereignlogic.io
+
+---
+
 ## 🤝 Contributing
 
 ### Pricing Table Updates
