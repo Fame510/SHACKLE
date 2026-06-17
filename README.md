@@ -8,6 +8,27 @@
 
 ---
 
+## 🚨 Agent Running Wild Right Now? Got a Bill You Didn't Expect?
+
+**I fix this. Today.**
+
+If your CrewAI / LangGraph / AutoGen agents are burning money in loops and you
+need a solution deployed by someone who understands the internals — not a generic
+consultant who'll Google "what is CrewAI" on your dime:
+
+📧 **docspoc101@gmail.com**
+
+**Flat-rate implementation: $2,500**
+- Architecture audit of your agent topology
+- Custom SHACKLE configuration for your specific models and tools
+- Integration with your existing codebase (one decorator, zero refactors)
+- 30-day guarantee: if SHACKLE doesn't catch a loop in 30 days, I fix it free
+
+Most clients recover this cost in their first two weeks of API savings.
+Serious inquiries only. You'll speak directly to the engineer who built it.
+
+---
+
 ## Provenance
 
 SHACKLE was built by **Dante Bullock**, a 52-year-old self-taught systems architect and
