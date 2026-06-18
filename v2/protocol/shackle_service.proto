@@ -1,11 +1,23 @@
 // SHACKLE V2 Enhanced Service Definition
-// Superset of the existing protocol — adds gRPC service, audit entries, guard config
+// gRPC service, audit entries, guard config, license validation
+// Depends on: shackle.proto for core message types
 
 syntax = "proto3";
 
 package shackle.v2;
 
 option go_package = "github.com/shackle/protocol/v2;shackle";
+
+import "shackle.proto";
+
+// ============================================================================
+// MISSING MESSAGES (not in shackle.proto)
+// ============================================================================
+
+message DisconnectResponse {
+  bool acknowledged = 1;
+  string message = 2;
+}
 
 // ============================================================================
 // SERVICE DEFINITION (gRPC)

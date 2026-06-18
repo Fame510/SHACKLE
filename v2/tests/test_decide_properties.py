@@ -134,6 +134,7 @@ def test_p5_repeat_limit_triggers_deny(max_repeats, call):
 def test_p6_fresh_state_allows_first_call(config, rng):
     assume(config.budget_usd > 0.01)
     assume(not config.probabilistic_deny)
+    assume(config.hitl_mode == HitlMode.NEVER)  # HITL modes would intercept
     state = SessionState(budget_initial_usd=config.budget_usd,
                          budget_remaining_usd=config.budget_usd)
     call = ToolCall("test_tool", b"hash_1", 0.0001, nonce=42)
