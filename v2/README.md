@@ -104,16 +104,16 @@ def run():
 
 ## Pricing
 
-**V1 (Open-source):** Always free (AGPLv3)
+**V1 (Open-source):** Free for open-source projects (AGPLv3)
 
 **V2 Commercial License:**
-- **Startup:** $1,200/year per developer
-- **Enterprise:** Custom (includes architecture audit, on-prem deployment, SOC2 pack)
-- **White-label:** $10K-$50K flat (co-branded for framework companies)
+- Custom pricing based on team size, deployment scale, and requirements
+- Available for startups, enterprises, and framework partnerships
+- Includes architecture audit, integration support, and SLA-backed support
 
 **Implementation Service:** $2,500 (V1 or V2 setup + architecture audit)
 
-📧 **Contact:** docspoc101@gmail.com
+📧 **Contact for pricing:** docspoc101@gmail.com
 
 ---
 

@@ -220,22 +220,16 @@ want to do that — so they purchase a commercial license instead.
 | Priority support | Community | SLA-backed |
 | Custom integration assistance | Self-serve | Architecture audit |
 
-### Available Commercial Options
+### Licensing Options
 
-**Startup License** — $1,200/year per developer
-For funded startups shipping proprietary agent products.
+Commercial licensing is available for:
+- **Developer / Startup teams** shipping closed-source agent products
+- **Enterprise deployments** requiring on-prem, SOC2 compliance, or SLA support
+- **Framework companies** (CrewAI, LangGraph, etc.) wanting white-label integration
 
-**Enterprise License** — Custom pricing
-White-label integration, on-prem deployment, SSO, audit log compliance.
-Includes architecture audit + custom SHACKLE configuration for your
-specific agent topology.
+Pricing is customized based on your needs, team size, and deployment scale.
 
-**Partnership / White-Label** — $10,000–$50,000 flat
-For agent framework companies (CrewAI, LangGraph, etc.) wanting to ship
-SHACKLE as a native enterprise feature. Co-branded integration + revenue
-share on enterprise upsell.
-
-📧 **Contact:** docspoc101@gmail.com
+📧 **Contact for pricing:** docspoc101@gmail.com
 
 ---
 
