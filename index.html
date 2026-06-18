@@ -3,145 +3,1023 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SHACKLE — Runtime Circuit Breaker for AI Agents</title>
-<meta name="description" content="Stop runaway token loops before they burn your wallet. One-line decorator. Zero framework changes. Built by Dante Bullock, Sovereign Logic.">
-<meta property="og:title" content="SHACKLE — Circuit Breaker for AI Agents">
-<meta property="og:description" content="Stop runaway token loops. One decorator. Zero refactoring. $2,500 implementation.">
-<meta property="og:image" content="https://fame510.github.io/SHACKLE-PRO-/logo.png">
-<meta property="og:url" content="https://fame510.github.io/SHACKLE-PRO-/">
-<meta name="twitter:card" content="summary_large_image">
+<title>SHACKLE — Runtime Circuit Breaker for Autonomous AI Agents</title>
+<meta name="description" content="The 1-Line Runtime Circuit Breaker for Autonomous AI Agents. Stop runaway token loops before they burn your wallet. Built by Dante Bullock, Sovereign Logic.">
 <style>
+  /* ═══════════════════════════════════════════════════════════
+     SHACKLE — BRUTALIST DEFENSE-GRADE INDUSTRIAL
+     Black box flight recorder for the AI age.
+     ═══════════════════════════════════════════════════════════ */
+
+  :root {
+    --black: #0a0a0a;
+    --blacker: #050505;
+    --orange: #ff5500;
+    --orange-dim: #cc4400;
+    --green: #00ff66;
+    --green-dim: #00cc44;
+    --white: #e0e0e0;
+    --gray: #888888;
+    --dark-gray: #1a1a1a;
+    --border: #333333;
+    --red: #ff3333;
+  }
+
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { background: #0a0a0a; color: #e0e0e0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; line-height: 1.6; }
-  .container { max-width: 720px; margin: 0 auto; padding: 60px 24px; }
-  .logo { width: 64px; height: 64px; margin-bottom: 16px; }
-  h1 { font-size: 2.4rem; font-weight: 800; margin-bottom: 8px; color: #fff; }
-  .subtitle { font-size: 1.15rem; color: #999; margin-bottom: 40px; }
-  .cta { display: inline-block; background: #e53935; color: #fff; padding: 16px 36px; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 1.1rem; margin-bottom: 16px; }
-  .cta:hover { background: #c62828; }
-  .cta-secondary { display: inline-block; background: transparent; color: #e53935; padding: 12px 24px; border: 2px solid #e53935; border-radius: 8px; text-decoration: none; font-weight: 700; margin-left: 12px; }
-  .cta-secondary:hover { background: rgba(229,57,53,0.1); }
-  .section { margin-top: 48px; }
-  h2 { font-size: 1.6rem; color: #fff; margin-bottom: 16px; }
-  .card { background: #141414; border: 1px solid #222; border-radius: 10px; padding: 24px; margin-bottom: 16px; }
-  .card h3 { color: #e53935; margin-bottom: 8px; }
-  pre { background: #111; border: 1px solid #222; border-radius: 8px; padding: 20px; overflow-x: auto; font-size: 0.9rem; color: #ccc; margin: 12px 0; }
-  .badge { display: inline-block; background: #222; color: #999; padding: 4px 10px; border-radius: 4px; font-size: 0.8rem; margin-right: 6px; }
-  .c1 { color: #e53935; } .c2 { color: #ffb74d; } .c3 { color: #66bb6a; }
-  footer { margin-top: 60px; padding-top: 24px; border-top: 1px solid #222; color: #666; font-size: 0.85rem; text-align: center; }
-  footer a { color: #e53935; text-decoration: none; }
-  @media (max-width: 600px) { h1 { font-size: 1.8rem; } .cta-secondary { margin-left: 0; margin-top: 12px; } }
+
+  body {
+    background: var(--black);
+    color: var(--white);
+    font-family: 'Courier New', 'SF Mono', 'Fira Code', monospace;
+    line-height: 1.6;
+    font-size: 15px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ═══════════════════════════════════════
+     HERO — Warning Banner
+     ═══════════════════════════════════════ */
+
+  .hero {
+    background: var(--blacker);
+    border-bottom: 4px solid var(--orange);
+    padding: 80px 24px 60px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background:
+      repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(255, 85, 0, 0.03) 2px,
+        rgba(255, 85, 0, 0.03) 4px
+      );
+    pointer-events: none;
+  }
+
+  .hero-badge {
+    display: inline-block;
+    background: var(--orange);
+    color: var(--blacker);
+    font-weight: bold;
+    font-size: 12px;
+    letter-spacing: 3px;
+    padding: 6px 16px;
+    margin-bottom: 24px;
+    text-transform: uppercase;
+  }
+
+  .hero h1 {
+    font-size: clamp(32px, 8vw, 72px);
+    font-weight: 900;
+    line-height: 1.1;
+    letter-spacing: -2px;
+    color: var(--white);
+    text-transform: uppercase;
+    position: relative;
+  }
+
+  .hero h1 .highlight {
+    color: var(--orange);
+  }
+
+  .hero h1 .glitch {
+    display: inline-block;
+    position: relative;
+  }
+
+  .hero-stat {
+    display: inline-block;
+    background: var(--dark-gray);
+    border: 1px solid var(--orange);
+    padding: 16px 24px;
+    margin: 24px 0;
+    text-align: center;
+  }
+
+  .hero-stat .number {
+    font-size: 48px;
+    font-weight: 900;
+    color: var(--red);
+    display: block;
+    line-height: 1;
+  }
+
+  .hero-stat .label {
+    font-size: 13px;
+    color: var(--gray);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    display: block;
+    margin-top: 4px;
+  }
+
+  .hero-stat .source {
+    font-size: 11px;
+    color: var(--orange);
+    margin-top: 4px;
+  }
+
+  .hero-subtitle {
+    font-size: 18px;
+    color: var(--gray);
+    max-width: 640px;
+    margin: 16px 0 24px;
+  }
+
+  .hero-cta {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 24px;
+  }
+
+  /* ═══════════════════════════════════════
+     BUTTONS
+     ═══════════════════════════════════════ */
+
+  .btn {
+    display: inline-block;
+    padding: 14px 28px;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: bold;
+    text-decoration: none;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: all 0.15s ease;
+  }
+
+  .btn-primary {
+    background: var(--orange);
+    color: var(--blacker);
+    border-color: var(--orange);
+  }
+  .btn-primary:hover {
+    background: var(--orange-dim);
+    border-color: var(--orange-dim);
+  }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--orange);
+    border-color: var(--orange);
+  }
+  .btn-ghost:hover {
+    background: var(--orange);
+    color: var(--blacker);
+  }
+
+  .btn-green {
+    background: var(--green);
+    color: var(--blacker);
+    border-color: var(--green);
+  }
+  .btn-green:hover {
+    background: var(--green-dim);
+  }
+
+  /* ═══════════════════════════════════════
+     TERMINAL
+     ═══════════════════════════════════════ */
+
+  .terminal-container {
+    max-width: 720px;
+    margin: 40px auto 0;
+    position: relative;
+  }
+
+  .terminal {
+    background: #0c0c0c;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    font-size: 13px;
+  }
+
+  .terminal-header {
+    background: #1a1a1a;
+    padding: 8px 12px;
+    display: flex;
+    gap: 6px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .terminal-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+  }
+  .terminal-dot.red { background: #ff5555; }
+  .terminal-dot.yellow { background: #ffaa00; }
+  .terminal-dot.green { background: #55ff55; }
+
+  .terminal-body {
+    padding: 16px;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--white);
+    overflow-x: auto;
+  }
+
+  .term-prompt { color: var(--green); }
+  .term-command { color: var(--white); }
+  .term-output { color: var(--gray); }
+  .term-warn { color: var(--orange); font-weight: bold; }
+  .term-error { color: var(--red); font-weight: bold; }
+  .term-highlight { color: var(--orange); }
+  .term-blink { animation: blink 1s step-end infinite; }
+  .term-cursor { color: var(--green); }
+
+  @keyframes blink {
+    50% { opacity: 0; }
+  }
+
+  /* ═══════════════════════════════════════
+     CONTENT SECTIONS
+     ═══════════════════════════════════════ */
+
+  .section {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 80px 24px;
+  }
+
+  .section-dark {
+    background: var(--blacker);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .section-label {
+    font-size: 11px;
+    letter-spacing: 4px;
+    color: var(--orange);
+    text-transform: uppercase;
+    margin-bottom: 16px;
+    display: block;
+  }
+
+  .section h2 {
+    font-size: 28px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: -1px;
+    margin-bottom: 16px;
+    color: var(--white);
+  }
+
+  .section h3 {
+    font-size: 18px;
+    font-weight: bold;
+    color: var(--white);
+    margin: 24px 0 8px;
+  }
+
+  .section p {
+    color: var(--gray);
+    margin-bottom: 16px;
+    max-width: 720px;
+  }
+
+  /* ═══════════════════════════════════════
+     PAIN POINTS GRID
+     ═══════════════════════════════════════ */
+
+  .pain-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+    margin: 40px 0;
+  }
+
+  .pain-card {
+    background: var(--dark-gray);
+    border: 1px solid var(--border);
+    padding: 24px;
+    border-left: 4px solid var(--orange);
+  }
+
+  .pain-card h4 {
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--orange);
+    margin-bottom: 8px;
+  }
+
+  .pain-card p {
+    font-size: 13px;
+    color: var(--gray);
+  }
+
+  /* ═══════════════════════════════════════
+     PARADIGM MATRIX
+     ═══════════════════════════════════════ */
+
+  .paradigm-matrix {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2px;
+    margin: 40px 0;
+    border: 1px solid var(--border);
+    overflow: hidden;
+  }
+
+  .paradigm-col {
+    padding: 32px 24px;
+  }
+
+  .paradigm-col.local {
+    background: var(--dark-gray);
+  }
+
+  .paradigm-col.sovereign {
+    background: #111111;
+    border-left: 4px solid var(--orange);
+  }
+
+  .paradigm-col h4 {
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 16px;
+    color: var(--white);
+  }
+
+  .paradigm-col ul {
+    list-style: none;
+    font-size: 13px;
+  }
+
+  .paradigm-col li {
+    padding: 6px 0;
+    color: var(--gray);
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+
+  .paradigm-col li::before {
+    content: '▸ ';
+    color: var(--green);
+  }
+
+  .paradigm-col.sovereign li::before {
+    content: '◆ ';
+    color: var(--orange);
+  }
+
+  /* ═══════════════════════════════════════
+     ARCHITECTURE DIAGRAM (SIMPLIFIED)
+     ═══════════════════════════════════════ */
+
+  .arch-diagram {
+    background: var(--blacker);
+    border: 1px solid var(--border);
+    padding: 24px;
+    margin: 40px 0;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    line-height: 1.4;
+    overflow-x: auto;
+    white-space: pre;
+    color: var(--white);
+  }
+
+  /* ═══════════════════════════════════════
+     CASE STUDY
+     ═══════════════════════════════════════ */
+
+  .case-study {
+    background: var(--dark-gray);
+    border-left: 6px solid var(--red);
+    padding: 32px;
+    margin: 40px 0;
+  }
+
+  .case-study .loss {
+    font-size: 64px;
+    font-weight: 900;
+    color: var(--red);
+    line-height: 1;
+    margin-bottom: 8px;
+  }
+
+  .case-study .what-if {
+    color: var(--green);
+    font-weight: bold;
+    font-size: 16px;
+    margin-top: 16px;
+  }
+
+  /* ═══════════════════════════════════════
+     FEATURE TABLE
+     ═══════════════════════════════════════ */
+
+  .feature-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 12px;
+    margin: 40px 0;
+  }
+
+  .feature-item {
+    border: 1px solid var(--border);
+    padding: 20px;
+    background: var(--dark-gray);
+  }
+
+  .feature-item .icon {
+    font-size: 20px;
+    margin-bottom: 8px;
+  }
+
+  .feature-item h4 {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--green);
+    margin-bottom: 6px;
+  }
+
+  .feature-item p {
+    font-size: 12px;
+    color: var(--gray);
+    margin: 0;
+  }
+
+  /* ═══════════════════════════════════════
+     SOCIAL PROOF
+     ═══════════════════════════════════════ */
+
+  .testimonial {
+    border-left: 3px solid var(--green);
+    padding: 16px 24px;
+    margin: 24px 0;
+    background: rgba(0, 255, 102, 0.03);
+  }
+
+  .testimonial .quote {
+    font-style: italic;
+    color: var(--white);
+    font-size: 15px;
+  }
+
+  .testimonial .attribution {
+    color: var(--gray);
+    font-size: 12px;
+    margin-top: 8px;
+  }
+
+  .testimonial .attribution strong {
+    color: var(--orange);
+  }
+
+  /* ═══════════════════════════════════════
+     PRICING / CTA
+     ═══════════════════════════════════════ */
+
+  .pricing-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+    margin: 40px 0;
+  }
+
+  .pricing-tier {
+    border: 1px solid var(--border);
+    padding: 32px 24px;
+    background: var(--dark-gray);
+    text-align: center;
+  }
+
+  .pricing-tier.featured {
+    border-color: var(--orange);
+    position: relative;
+  }
+
+  .pricing-tier.featured::before {
+    content: 'RECOMMENDED';
+    position: absolute;
+    top: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--orange);
+    color: var(--blacker);
+    font-size: 10px;
+    font-weight: bold;
+    letter-spacing: 2px;
+    padding: 4px 12px;
+  }
+
+  .pricing-tier h4 {
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--white);
+    margin-bottom: 12px;
+  }
+
+  .pricing-tier .price {
+    font-size: 42px;
+    font-weight: 900;
+    color: var(--green);
+    margin-bottom: 16px;
+  }
+
+  .pricing-tier .price.enterprise {
+    color: var(--orange);
+  }
+
+  .pricing-tier ul {
+    list-style: none;
+    font-size: 13px;
+    text-align: left;
+    margin-bottom: 20px;
+  }
+
+  .pricing-tier li {
+    padding: 4px 0;
+    color: var(--gray);
+  }
+
+  .pricing-tier li::before {
+    content: '✓ ';
+    color: var(--green);
+  }
+
+  .pricing-tier li.no::before {
+    content: '✗ ';
+    color: var(--red);
+  }
+
+  /* ═══════════════════════════════════════
+     INTEGRATION PARTNERS
+     ═══════════════════════════════════════ */
+
+  .partner-banner {
+    background: var(--dark-gray);
+    border: 1px solid var(--orange);
+    padding: 24px;
+    margin: 40px 0;
+    text-align: center;
+  }
+
+  .partner-banner h4 {
+    color: var(--orange);
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 8px;
+  }
+
+  /* ═══════════════════════════════════════
+     FOOTER
+     ═══════════════════════════════════════ */
+
+  footer {
+    border-top: 4px solid var(--orange);
+    padding: 48px 24px;
+    background: var(--blacker);
+    text-align: center;
+    font-size: 12px;
+    color: var(--gray);
+  }
+
+  footer .who {
+    color: var(--white);
+    font-weight: bold;
+    font-size: 14px;
+    margin-bottom: 8px;
+  }
+
+  footer a {
+    color: var(--orange);
+    text-decoration: none;
+  }
+
+  footer a:hover {
+    text-decoration: underline;
+  }
+
+  /* ═══════════════════════════════════════
+     RESPONSIVE
+     ═══════════════════════════════════════ */
+
+  @media (max-width: 768px) {
+    .paradigm-matrix {
+      grid-template-columns: 1fr;
+    }
+    .paradigm-col.sovereign {
+      border-left: none;
+      border-top: 4px solid var(--orange);
+    }
+    .hero h1 {
+      font-size: 36px;
+    }
+    .case-study .loss {
+      font-size: 42px;
+    }
+    .section {
+      padding: 48px 16px;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .hero-stat {
+      display: block;
+    }
+    .hero-cta {
+      flex-direction: column;
+    }
+    .btn {
+      text-align: center;
+    }
+  }
 </style>
 </head>
 <body>
-<div class="container">
 
-  <img src="logo.png" alt="SHACKLE" class="logo">
-  <h1>⛓️ SHACKLE</h1>
-  <p class="subtitle">The 1-Line Runtime Circuit Breaker for Autonomous AI Agents.<br>Stop runaway token loops before they burn your wallet.</p>
+<!-- ═══════════════════════ HERO ═══════════════════════ -->
+<section class="hero">
+  <span class="hero-badge">⚠ Production Warning</span>
 
-  <a href="https://buy.stripe.com/6oU28q54DbsXdpV6Hy9sk00" class="cta">Pay $2,500 — Get It Fixed Today</a>
-  <a href="https://github.com/Fame510/SHACKLE-PRO-" class="cta-secondary">View on GitHub →</a>
+  <h1>
+    YOUR AGENT<br>
+    IS <span class="highlight">BLEEDING</span><br>
+    MONEY.<br>
+    <span class="glitch">RIGHT NOW.</span>
+  </h1>
 
-  <div class="section">
-    <h2>Your Agent Is Bleeding Money. Right Now.</h2>
-    <div class="card">
-      <h3>🔄 The Loop of Death</h3>
-      <p>Your agent hits an error. Retries the same tool with the same input. Burns tokens quadratically. You wake up to a $400 bill with no idea what happened.</p>
+  <div class="hero-stat">
+    <span class="number">$106,000</span>
+    <span class="label">Actual Loss Documented</span>
+    <span class="source">AutoGen #7770 — Agent destroyed AWS management account</span>
+  </div>
+
+  <p class="hero-subtitle">
+    SHACKLE is the 1-line runtime circuit breaker that stops autonomous agents
+    from burning your API budget in silent infinite loops. Works with CrewAI,
+    LangGraph, AutoGen — zero refactoring.
+  </p>
+
+  <div class="hero-cta">
+    <a href="https://buy.stripe.com/6oU28q54DbsXdpV6Hy9sk00" class="btn btn-primary">
+      ▶ Pay $2,500 — Get It Fixed Today
+    </a>
+    <a href="https://github.com/Fame510/SHACKLE-PRO-" class="btn btn-ghost">
+      View Source (AGPLv3)
+    </a>
+    <a href="mailto:docspoc101@gmail.com?subject=SHACKLE Enterprise Inquiry" class="btn btn-ghost">
+      Enterprise Inquiry
+    </a>
+  </div>
+
+  <!-- Terminal Emulator -->
+  <div class="terminal-container">
+    <div class="terminal">
+      <div class="terminal-header">
+        <span class="terminal-dot red"></span>
+        <span class="terminal-dot yellow"></span>
+        <span class="terminal-dot green"></span>
+      </div>
+      <div class="terminal-body">
+        <span class="term-prompt">$ </span><span class="term-command">python agent_kickoff.py</span><br>
+        <span class="term-output">[Agent] Running research task...</span><br>
+        <span class="term-output">[Tool] web_search("latest AI news") → 200 OK</span><br>
+        <span class="term-output">[Tool] web_search("latest AI news") → 401 Unauthorized</span><br>
+        <span class="term-warn">[Tool] web_search("latest AI news") → 401 Unauthorized ⚠</span><br>
+        <br>
+        <span class="term-highlight">⛓️ SHACKLE CIRCUIT BREAKER: REPETITIVE_TOOL_CALL</span><br>
+        <br>
+        <span class="term-output">Agent: ResearchAgent</span><br>
+        <span class="term-output">Tool: web_search</span><br>
+        <span class="term-output">Input: {"query": "latest AI news", "error": "401 Unauthorized"}</span><br>
+        <span class="term-error">Call Count: 3x → CIRCUIT OPEN</span><br>
+        <br>
+        <span class="term-output">━━━ Session Stats ━━━</span><br>
+        <span class="term-output">Tokens: In: 8,400 | Out: 1,200</span><br>
+        <span class="term-output">Session Cost: $0.02850 (saved: ~$400.00)</span><br>
+        <span class="term-output">Time Running: 47.2s</span><br>
+        <br>
+        <span class="term-highlight">[R] Resume/Reset&nbsp;&nbsp;[S] Skip&nbsp;&nbsp;[A] Abort</span><br>
+        <span class="term-cursor">▌</span>
+      </div>
     </div>
-    <div class="card">
-      <h3>💰 No Native Budget Enforcement</h3>
-      <p>CrewAI, AutoGen, and LangGraph have zero built-in cost guardrails. Your agent runs until it runs out of your money.</p>
+  </div>
+</section>
+
+<!-- ═══════════════════════ THE PROBLEM ═══════════════════════ -->
+<section class="section">
+  <span class="section-label">// The Crisis</span>
+  <h2>Your Agent Is Bleeding Money. Right Now.</h2>
+
+  <div class="pain-grid">
+    <div class="pain-card">
+      <h4>🔄 The Loop of Death</h4>
+      <p>Agent hits an error. Retries same tool with same input. Burns tokens quadratically. You wake up to a $400 bill — or worse, a $106,000 AWS disaster — with no idea what happened.</p>
     </div>
-    <div class="card">
-      <h3>⏱️ Hung Tools, Silent Failures</h3>
-      <p>An API hangs. Your agent waits forever. No timeout. No alert. Just a frozen process burning your compute budget.</p>
+    <div class="pain-card">
+      <h4>💰 No Native Budget Enforcement</h4>
+      <p>CrewAI, AutoGen, and LangGraph have zero built-in cost guardrails. Your agent runs until it runs out of <em>your</em> money. Framework developers admit this is unsolved.</p>
+    </div>
+    <div class="pain-card">
+      <h4>⏱️ Hung Tools, Silent Failures</h4>
+      <p>API hangs. Agent waits forever. No timeout. No alert. Just a frozen process burning compute budget. Across 20+ agents in production, this compounds exponentially.</p>
+    </div>
+    <div class="pain-card">
+      <h4>📊 Cross-Framework Invisible</h4>
+      <p>Production stacks run CrewAI + AutoGen + LangGraph simultaneously. Each framework has different failure modes. None has a unified circuit breaker. Until now.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════ CASE STUDY ═══════════════════════ -->
+<section class="section section-dark">
+  <span class="section-label">// Case Study</span>
+  <h2>This Actually Happened.</h2>
+
+  <div class="case-study">
+    <div class="loss">$106,000</div>
+    <p style="color:var(--white);font-size:16px;">
+      An AutoGen agent managing 10,000+ AWS accounts destroyed the management account
+      in a recursive cleanup loop. No circuit breaker. No budget guard. No kill switch.
+    </p>
+    <p style="color:var(--gray);font-size:13px;margin-top:8px;">
+      Source: <a href="https://github.com/microsoft/autogen/issues/7770" style="color:var(--orange);">microsoft/autogen#7770</a> — @tzb1-ai, enterprise infrastructure operator
+    </p>
+    <p class="what-if">
+      SHACKLE would have stopped it at $0.20.
+    </p>
+  </div>
+</section>
+
+<!-- ═══════════════════════ HOW IT WORKS ═══════════════════════ -->
+<section class="section">
+  <span class="section-label">// Solution</span>
+  <h2>One Decorator. Zero Refactoring.</h2>
+
+  <div class="terminal" style="max-width:640px;margin:24px 0;">
+    <div class="terminal-header">
+      <span class="terminal-dot red"></span><span class="terminal-dot yellow"></span><span class="terminal-dot green"></span>
+    </div>
+    <div class="terminal-body">
+      <span class="term-prompt">$ </span><span class="term-command">cat agent.py</span><br>
+      <br>
+      <span style="color:#666;">from</span> <span style="color:#fff;">shackle</span> <span style="color:#666;">import</span> <span style="color:#fff;">Guard</span><br>
+      <br>
+      <span style="color:#ff5500;">@Guard</span>(budget=<span style="color:#00ff66;">0.25</span>, max_repeat_calls=<span style="color:#00ff66;">3</span>, timeout_seconds=<span style="color:#00ff66;">180</span>)<br>
+      <span style="color:#666;">def</span> <span style="color:#fff;">safe_kickoff</span>():<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#666;">return</span> <span style="color:#fff;">crew.kickoff</span>()<br>
+      <br>
+      <span style="color:#fff;">safe_kickoff</span>()<br>
+      <br>
+      <span class="term-prompt">$ </span><span class="term-command">pip install shackle-guard && python agent.py</span><br>
+      <span class="term-output">✅ SHACKLE active. Guards: budget=$0.25, repeat=3x, timeout=180s</span>
     </div>
   </div>
 
-  <div class="section">
-    <h2>One Decorator. Zero Refactoring.</h2>
-    <pre><span class="c1">from</span> shackle <span class="c1">import</span> Guard
+  <p>
+    SHACKLE hooks <code style="color:var(--orange);">litellm.completion</code> and <code style="color:var(--orange);">BaseTool.run</code>
+    at the interpreter level. No framework source changes. No refactoring. Works across CrewAI,
+    LangGraph, and AutoGen simultaneously.
+  </p>
 
-<span class="c3">@Guard</span>(<span class="c2">budget</span>=<span class="c1">0.25</span>, <span class="c2">max_repeat_calls</span>=<span class="c1">3</span>, <span class="c2">timeout_seconds</span>=<span class="c1">180</span>)
-<span class="c1">def</span> <span class="c3">safe_kickoff</span>():
-    <span class="c1">return</span> crew.kickoff()
-
-safe_kickoff()</pre>
-    <p>That's it. SHACKLE patches <code>litellm.completion</code> and <code>BaseTool.run</code> at the interpreter level. Your CrewAI, LangGraph, or AutoGen code stays exactly as it is.</p>
-  </div>
-
-  <div class="section">
-    <h2>What You Get</h2>
-    <div class="card">
-      <h3>✅ Architecture Audit</h3>
-      <p>I review your agent topology, identify failure modes, and configure SHACKLE for your specific models and tools.</p>
+  <div class="feature-grid">
+    <div class="feature-item">
+      <div class="icon">🛑</div>
+      <h4>Loop of Death Prevention</h4>
+      <p>Detects identical sequential tool calls and error cascades. Trips circuit breaker before quadratic token burn.</p>
     </div>
-    <div class="card">
-      <h3>✅ Custom Integration</h3>
-      <p>One decorator added to your kickoff. Zero changes to your existing agent code. Works with CrewAI, LangGraph, AutoGen.</p>
+    <div class="feature-item">
+      <div class="icon">💰</div>
+      <h4>Budget Enforcement</h4>
+      <p>Real-time token tracking against client-side pricing table. Hard freeze when budget is exhausted.</p>
     </div>
-    <div class="card">
-      <h3>✅ 30-Day Guarantee</h3>
-      <p>If SHACKLE doesn't catch a loop in your first 30 days, I fix it. Free. You only pay if it works.</p>
+    <div class="feature-item">
+      <div class="icon">⏱️</div>
+      <h4>Execution Timeouts</h4>
+      <p>Kills hung threads on dead APIs. No more frozen processes burning compute.</p>
     </div>
-    <div class="card">
-      <h3>✅ Direct Access</h3>
-      <p>You talk to the engineer who built it. No project managers. No support tickets. No runaround.</p>
+    <div class="feature-item">
+      <div class="icon">🖥️</div>
+      <h4>HITL Console</h4>
+      <p>Interactive terminal with Resume / Skip / Abort. Human stays in the loop when it matters.</p>
     </div>
-  </div>
-
-  <div class="section" style="text-align: center;">
-    <h2>Ready to Stop Burning Money?</h2>
-    <a href="https://buy.stripe.com/6oU28q54DbsXdpV6Hy9sk00" class="cta">Pay $2,500 — Get Started</a>
-    <p style="margin-top: 12px; color: #888;">After payment, email docspoc101@gmail.com<br>Response within 4 hours.</p>
-  </div>
-
-  <div class="section">
-    <h2>What Developers Say</h2>
-    <div class="card">
-      <p style="font-style: italic; color: #ccc;">"SHACKLE's litellm hook is brilliant for teams running polyglot stacks (CrewAI + AutoGen + LangGraph). You get one unified guardrail across your whole topology."</p>
-      <p style="margin-top: 12px; color: #999; font-size: 0.9rem;">— Creator of TokenCircuit, competing LangGraph solution</p>
+    <div class="feature-item">
+      <div class="icon">🔒</div>
+      <h4>100% Client-Side</h4>
+      <p>No telemetry. No phone-home. No hidden SaaS. Your agent data stays on your machine.</p>
     </div>
-    <div class="card">
-      <p style="font-style: italic; color: #ccc;">"The error-amplification logic (catching 401/500s on the 2nd attempt) is incredibly sharp."</p>
-      <p style="margin-top: 12px; color: #999; font-size: 0.9rem;">— Developer on LangGraph issue tracker</p>
+    <div class="feature-item">
+      <div class="icon">🔀</div>
+      <h4>Cross-Framework</h4>
+      <p>CrewAI ✅ LangGraph ✅ AutoGen ✅ Smolagents 🧪 — one decorator, all frameworks.</p>
     </div>
   </div>
+</section>
 
-  <div class="section">
-    <h2>Enterprise Features Available</h2>
-    <div class="card">
-      <h3>SHACKLE V2: Runtime Sovereignty Layer</h3>
-      <p>For production deployments requiring <strong>distributed state</strong> (serverless, Lambda, K8s), <strong>SOC2 audit logs</strong>, or <strong>remote agent control</strong>.</p>
-      <p style="margin-top: 12px;"><strong>V2 adds:</strong></p>
-      <ul style="margin-top: 8px; padding-left: 20px; line-height: 1.8;">
-        <li>Distributed budget tracking across serverless functions</li>
-        <li>Postgres audit logs (cryptographically signed, SOC2-ready)</li>
-        <li>Remote HITL control (manage headless agents from mobile/web)</li>
-        <li>Commercial licensing for closed-source products</li>
+<!-- ═══════════════════════ ARCHITECTURE ═══════════════════════ -->
+<section class="section section-dark">
+  <span class="section-label">// Architecture</span>
+  <h2>Interpreter-Level Interception.</h2>
+  <p>SHACKLE sits between your agent and the runtime — not as middleware, but as a runtime shim.</p>
+
+  <div class="arch-diagram">
+┌─────────────────────────────────────────────────────────┐
+│                 SHACKLE RUNTIME ENVELOPE                │
+│                                                         │
+│  ┌──────────┐    ┌──────────┐    ┌──────────┐          │
+│  │ CrewAI   │    │ AutoGen  │    │LangGraph │          │
+│  └────┬─────┘    └────┬─────┘    └────┬─────┘          │
+│       │               │               │                 │
+│       └───────────────┬───────────────┘                 │
+│                       │                                 │
+│              ┌────────▼────────┐                        │
+│              │  SHACKLE GUARD  │  ← litellm hook        │
+│              │  decide(state,  │  ← BaseTool.run hook   │
+│              │  call) → Verdict│  ← Agent.execute_task  │
+│              └────────┬────────┘                        │
+│                       │                                 │
+│          ┌────────────┼────────────┐                    │
+│          │            │            │                    │
+│     ┌────▼───┐  ┌─────▼────┐ ┌────▼─────┐              │
+│     │ ALLOW  │  │  DENY    │ │  HITL    │              │
+│     │ execute│  │ block +  │ │ pause +  │              │
+│     │ tool   │  │ log      │ │ console  │              │
+│     └────────┘  └──────────┘ └──────────┘              │
+│                                                         │
+│  V1 (Local): In-process, memory state, CLI HITL         │
+│  V2 (Sovereign): Sidecar daemon, Redis, Postgres, WSS   │
+└─────────────────────────────────────────────────────────┘
+  </div>
+</section>
+
+<!-- ═══════════════════════ PARADIGM MATRIX ═══════════════════════ -->
+<section class="section">
+  <span class="section-label">// Deployment</span>
+  <h2>Two Paradigms. One Protocol.</h2>
+
+  <div class="paradigm-matrix">
+    <div class="paradigm-col local">
+      <h4>🖥️ LOCAL HITL (V1)</h4>
+      <ul>
+        <li>In-process decorator — zero infrastructure</li>
+        <li>Terminal-based HITL console</li>
+        <li>Memory-only state (lost on crash)</li>
+        <li>Perfect for development & debugging</li>
+        <li>pip install shackle-guard</li>
+        <li>Free — AGPLv3</li>
       </ul>
-      <p style="margin-top: 16px;"><a href="mailto:docspoc101@gmail.com?subject=SHACKLE Enterprise Inquiry" style="color: #e53935; font-weight: 700;">Contact for pricing →</a></p>
+      <a href="https://github.com/Fame510/SHACKLE-PRO-" class="btn btn-ghost" style="margin-top:16px;">View on GitHub →</a>
+    </div>
+    <div class="paradigm-col sovereign">
+      <h4>🏰 ENTERPRISE SOVEREIGN (V2)</h4>
+      <ul>
+        <li>Sidecar daemon — persistent state</li>
+        <li>Web/mobile remote HITL console</li>
+        <li>Redis + Postgres — state survives crashes</li>
+        <li>Distributed budget across serverless/K8s</li>
+        <li>SOC2 audit logs (cryptographically signed)</li>
+        <li>Commercial license available</li>
+      </ul>
+      <a href="mailto:docspoc101@gmail.com?subject=SHACKLE%20Enterprise%20Inquiry" class="btn btn-primary" style="margin-top:16px;">Contact for Pricing →</a>
     </div>
   </div>
+</section>
 
-  <div class="section">
-    <h2>Who Built This</h2>
-    <p><strong>Dante Bullock</strong> — 52-year-old self-taught systems architect, Oakland, California. Founder of Sovereign Logic. No venture capital. No corporate incubator. Just code that works.</p>
-    <p style="margin-top: 8px;">
-      <span class="badge">CrewAI</span>
-      <span class="badge">LangGraph</span>
-      <span class="badge">AutoGen</span>
-      <span class="badge">Python 3.10+</span>
-      <span class="badge">AGPLv3</span>
+<!-- ═══════════════════════ SOCIAL PROOF ═══════════════════════ -->
+<section class="section section-dark">
+  <span class="section-label">// Testimonials</span>
+  <h2>What Developers Say.</h2>
+
+  <div class="testimonial">
+    <p class="quote">
+      "SHACKLE's litellm hook is brilliant for teams running polyglot stacks (CrewAI + AutoGen + LangGraph).
+      You get one unified guardrail across your whole topology."
+    </p>
+    <p class="attribution">
+      — Creator of <strong>TokenCircuit</strong>, competing LangGraph solution
     </p>
   </div>
 
-  <footer>
-    SHACKLE v1.0 + v2.0 · <a href="https://github.com/Fame510/SHACKLE-PRO-">GitHub</a> · <a href="mailto:docspoc101@gmail.com">docspoc101@gmail.com</a><br>
-    Copyright © 2026 Dante Bullock, Sovereign Logic · AGPLv3 Licensed
-  </footer>
+  <div class="testimonial">
+    <p class="quote">
+      "The error-amplification logic (catching 401/500s on the 2nd attempt) is incredibly sharp."
+    </p>
+    <p class="attribution">
+      — Developer on <strong>LangGraph</strong> issue tracker
+    </p>
+  </div>
 
-</div>
+  <div class="partner-banner">
+    <h4>🔗 Seeking Integration Partners</h4>
+    <p style="color:var(--gray);font-size:13px;">
+      Running multi-agent production systems? SHACKLE fills the circuit breaker gap
+      in your delegation protocol. We're looking for integration partners with live
+      production deployments. Cross-framework, sandbox-compatible, runtime-level.
+    </p>
+    <a href="mailto:docspoc101@gmail.com?subject=SHACKLE%20Integration%20Partnership" class="btn btn-green" style="margin-top:12px;">
+      Propose Integration →
+    </a>
+  </div>
+</section>
+
+<!-- ═══════════════════════ PRICING ═══════════════════════ -->
+<section class="section">
+  <span class="section-label">// Pricing</span>
+  <h2>Stop the Bleeding. Today.</h2>
+
+  <div class="pricing-grid">
+    <div class="pricing-tier">
+      <h4>Open Source</h4>
+      <div class="price">$0</div>
+      <ul>
+        <li>Full V1 decorator source</li>
+        <li>Terminal HITL console</li>
+        <li>Budget + repeat + timeout guards</li>
+        <li>AGPLv3 license</li>
+        <li>Community support</li>
+        <li class="no">Distributed state</li>
+        <li class="no">SOC2 audit logs</li>
+        <li class="no">Commercial license</li>
+      </ul>
+      <a href="https://github.com/Fame510/SHACKLE-PRO-" class="btn btn-ghost">GitHub →</a>
+    </div>
+
+    <div class="pricing-tier featured">
+      <h4>Implementation + Audit</h4>
+      <div class="price">$2,500</div>
+      <ul>
+        <li>Architecture audit of your agent topology</li>
+        <li>Custom SHACKLE configuration</li>
+        <li>Integration with your codebase</li>
+        <li>Direct engineer access (not support tickets)</li>
+        <li>30-day guarantee — catches a loop or it's free</li>
+        <li>Same-day response (within 4 hours)</li>
+      </ul>
+      <a href="https://buy.stripe.com/6oU28q54DbsXdpV6Hy9sk00" class="btn btn-primary">Pay $2,500 →</a>
+    </div>
+
+    <div class="pricing-tier">
+      <h4>Enterprise Sovereign</h4>
+      <div class="price enterprise">Custom</div>
+      <ul>
+        <li>V2 sidecar daemon + distributed state</li>
+        <li>Postgres audit logs (SOC2-ready)</li>
+        <li>Remote HITL console (web/mobile)</li>
+        <li>Multi-tenant isolation</li>
+        <li>Commercial license (no copyleft)</li>
+        <li>SLA-backed priority support</li>
+        <li>On-premise deployment</li>
+      </ul>
+      <a href="mailto:docspoc101@gmail.com?subject=SHACKLE%20Enterprise%20Inquiry" class="btn btn-ghost">Contact →</a>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════ WHO BUILT THIS ═══════════════════════ -->
+<section class="section section-dark">
+  <span class="section-label">// Provenance</span>
+  <h2>Built by Someone Who Ships.</h2>
+
+  <p>
+    Dante Bullock — 52-year-old self-taught systems architect, Oakland, California.
+    Founder of <strong style="color:var(--white);">Sovereign Logic</strong>.
+    No venture capital. No corporate incubator. Just code that works.
+  </p>
+
+  <p style="color:var(--orange);font-style:italic;font-size:15px;">
+    "I don't wait for VC validation. I scrape issue trackers, find the bleeding, and build the tourniquet."
+  </p>
+
+  <p>
+    <a href="https://github.com/Fame510" style="color:var(--green);">GitHub: @Fame510</a> &nbsp;|&nbsp;
+    <a href="mailto:docspoc101@gmail.com" style="color:var(--orange);">docspoc101@gmail.com</a>
+  </p>
+</section>
+
+<!-- ═══════════════════════ FOOTER ═══════════════════════ -->
+<footer>
+  <p class="who">SHACKLE — Black Box Flight Recorder for the AI Age</p>
+  <p>
+    Open source under <a href="https://www.gnu.org/licenses/agpl-3.0">AGPLv3</a>.
+    Commercial licensing available.
+  </p>
+  <p style="margin-top:8px;">
+    Copyright © 2026 Dante Bullock, Sovereign Logic.
+  </p>
+  <p style="margin-top:4px;font-size:10px;color:var(--border);">
+    SHACKLE is a best-effort circuit breaker. You remain responsible for monitoring your own API limits and usage.
+  </p>
+</footer>
+
 </body>
 </html>

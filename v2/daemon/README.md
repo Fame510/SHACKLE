@@ -266,4 +266,9 @@ docker-compose up
 
 ## License
 
-MIT
+**AGPLv3** — GNU Affero General Public License v3.0.
+
+See the root [LICENSE](../../LICENSE) file for full terms.
+
+Using SHACKLE in a closed-source product? Commercial licensing is available.
+Contact: docspoc101@gmail.com

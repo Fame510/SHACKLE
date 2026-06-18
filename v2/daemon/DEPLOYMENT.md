@@ -614,4 +614,8 @@ SHACKLE prevents runaway costs:
 
 ## License
 
-MIT License - See LICENSE file
+**AGPLv3** — GNU Affero General Public License v3.0.
+See the root [LICENSE](../../LICENSE) file for full terms.
+
+Commercial licensing available for closed-source deployments.
+Contact: docspoc101@gmail.com
