@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Commercial Licensing
+    url: mailto:docspoc101@gmail.com
+    about: Closed-source use, white-label, enterprise deployment
+  - name: Bug Report
+    url: https://github.com/Fame510/SHACKLE-PRO-/issues/new
+    about: Report a bug or unexpected behavior
+  - name: Feature Request
+    url: https://github.com/Fame510/SHACKLE-PRO-/issues/new
+    about: Suggest a new feature
