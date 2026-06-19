@@ -409,14 +409,14 @@ diff <(echo $MASTER_SECRET) <(cat original_secret.txt)
 - **Examples:** See `examples/` directory (to be added)
 
 ### Community
-- **GitHub Issues:** [Your repo URL]
-- **Slack:** [Your workspace]
-- **Email:** compliance@shackle.ai
+- **GitHub Issues:** https://github.com/Fame510/SHACKLE-PRO-/issues
+- **GitHub Repo:** https://github.com/Fame510/SHACKLE-PRO-
+- **Email:** docspoc101@gmail.com
 
 ### Enterprise Support
-- **24/7 hotline:** +1-888-SHACKLE
-- **SLA:** 1-hour response for critical issues
-- **Support portal:** https://support.shackle.ai
+- **Direct Contact:** docspoc101@gmail.com
+- **Response Time:** Within 48 business hours (as per service agreement)
+- **Payment:** https://buy.stripe.com/6oU28q54DbsXdpV6Hy9sk00
 
 ---
 

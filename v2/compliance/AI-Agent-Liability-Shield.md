@@ -969,13 +969,13 @@ SHACKLE-ENT-a7f3c8e2-4b9d-4c1a-8e5f-2d6c9b3a7f1c-3a8f7e2c1b5d9a4f
 
 ### Appendix E: Contact Information
 
-**SHACKLE Security & Compliance Team**
-- Email: compliance@shackle.ai
-- Emergency: security@shackle.ai
-- PGP Key: Available at https://shackle.ai/pgp
+**Sovereign Logic - SHACKLE Support**
+- **Email:** docspoc101@gmail.com
+- **GitHub Issues:** https://github.com/Fame510/SHACKLE-PRO-/issues
+- **Repository:** https://github.com/Fame510/SHACKLE-PRO-
 
 **Document Feedback:**
-Submit corrections or improvements to: docs@shackle.ai
+Submit corrections or improvements via GitHub Issues or email docspoc101@gmail.com
 
 ---
 

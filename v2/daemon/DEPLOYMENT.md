@@ -608,9 +608,9 @@ SHACKLE prevents runaway costs:
 ## Support
 
 - **Documentation**: See README.md, ARCHITECTURE.md
-- **Issues**: File on GitHub
-- **Community**: Discord/Slack
-- **Email**: support@shackle.dev
+- **Issues**: https://github.com/Fame510/SHACKLE-PRO-/issues
+- **Repository**: https://github.com/Fame510/SHACKLE-PRO-
+- **Email**: docspoc101@gmail.com
 
 ## License
 
