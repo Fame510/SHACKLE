@@ -377,6 +377,57 @@
   }
 
   /* ═══════════════════════════════════════
+     COMPARISON TABLE
+     ═══════════════════════════════════════ */
+
+  .comparison-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 40px 0;
+    font-size: 13px;
+  }
+
+  .comparison-table th {
+    background: var(--orange);
+    color: var(--blacker);
+    padding: 12px 16px;
+    text-align: left;
+    font-size: 12px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    border: 1px solid var(--orange);
+  }
+
+  .comparison-table th:first-child {
+    background: var(--dark-gray);
+    color: var(--white);
+  }
+
+  .comparison-table td {
+    padding: 12px 16px;
+    border: 1px solid var(--border);
+    color: var(--gray);
+  }
+
+  .comparison-table td:first-child {
+    color: var(--white);
+    font-weight: bold;
+    background: rgba(255,255,255,0.02);
+  }
+
+  .comparison-table .check { color: var(--green); font-weight: bold; }
+  .comparison-table .cross { color: var(--red); }
+  .comparison-table .partial { color: var(--orange); }
+
+  .comparison-table tr:last-child td {
+    border-bottom: 2px solid var(--orange);
+  }
+
+  .comparison-table tr:last-child td:first-child {
+    color: var(--orange);
+  }
+
+  /* ═══════════════════════════════════════
      ARCHITECTURE DIAGRAM (SIMPLIFIED)
      ═══════════════════════════════════════ */
 
@@ -825,6 +876,109 @@
       <p>CrewAI ✅ LangGraph ✅ AutoGen ✅ Smolagents 🧪 — one decorator, all frameworks.</p>
     </div>
   </div>
+</section>
+
+<!-- ═══════════════════════ COMPARISON ═══════════════════════ -->
+<section class="section">
+  <span class="section-label">// Why SHACKLE Exists</span>
+  <h2>Nothing Else Does This.</h2>
+  <p>
+    Every AI agent framework offers <em>some</em> safety mechanism — but none provide a
+    dedicated pre-execution circuit breaker with mathematically verified decision logic.
+    Here's the landscape:
+  </p>
+
+  <div style="overflow-x:auto;">
+  <table class="comparison-table">
+    <thead>
+      <tr>
+        <th>Capability</th>
+        <th>Prompt Guards</th>
+        <th>Framework Limits</th>
+        <th>LangSmith / Monitoring</th>
+        <th>SHACKLE</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Pre-execution interception</td>
+        <td class="cross">✗ In-band</td>
+        <td class="cross">✗ Post-hoc</td>
+        <td class="cross">✗ Observability only</td>
+        <td class="check">✓ Process-level</td>
+      </tr>
+      <tr>
+        <td>Budget enforcement</td>
+        <td class="cross">✗</td>
+        <td class="partial">△ Token count only</td>
+        <td class="cross">✗</td>
+        <td class="check">✓ Per-session USD tracking</td>
+      </tr>
+      <tr>
+        <td>Loop-of-death detection</td>
+        <td class="cross">✗</td>
+        <td class="partial">△ Recursion limit</td>
+        <td class="partial">△ After-the-fact</td>
+        <td class="check">✓ 3-call repeat + error amplification</td>
+      </tr>
+      <tr>
+        <td>HITL (human-in-the-loop)</td>
+        <td class="cross">✗</td>
+        <td class="partial">△ Manual only</td>
+        <td class="cross">✗</td>
+        <td class="check">✓ CLI + WebSocket remote</td>
+      </tr>
+      <tr>
+        <td>Error signal detection</td>
+        <td class="cross">✗</td>
+        <td class="cross">✗</td>
+        <td class="cross">✗</td>
+        <td class="check">✓ 401/403/500/timeout cascade</td>
+      </tr>
+      <tr>
+        <td>Mathematical verification</td>
+        <td class="cross">✗</td>
+        <td class="cross">✗</td>
+        <td class="cross">✗</td>
+        <td class="check">✓ 9 invariants (Hypothesis-tested)</td>
+      </tr>
+      <tr>
+        <td>Cryptographic audit trail</td>
+        <td class="cross">✗</td>
+        <td class="cross">✗</td>
+        <td class="cross">✗</td>
+        <td class="check">✓ Ed25519-signed, immutable</td>
+      </tr>
+      <tr>
+        <td>Framework-agnostic</td>
+        <td class="cross">✗</td>
+        <td class="cross">✗ Framework-locked</td>
+        <td class="partial">△ LangChain only</td>
+        <td class="check">✓ Works with ANY agent</td>
+      </tr>
+      <tr>
+        <td>Zero-refactor integration</td>
+        <td class="partial">△ System prompt</td>
+        <td class="cross">✗ Requires config</td>
+        <td class="cross">✗ Requires SDK</td>
+        <td class="check">✓ One decorator: @Guard</td>
+      </tr>
+      <tr>
+        <td>Open source</td>
+        <td class="partial">△ Varies</td>
+        <td class="check">✓</td>
+        <td class="cross">✗ Proprietary SaaS</td>
+        <td class="check">✓ AGPLv3 + commercial</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p style="margin-top:24px;">
+    <strong style="color:var(--orange);">The gap:</strong> Every framework has prompt guards, rate limits,
+    and monitoring. Nobody has a <em>pre-execution circuit breaker with mathematically verified
+    decision logic</em>. That's what SHACKLE is. One import. Zero refactoring. Works today.
+  </p>
 </section>
 
 <!-- ═══════════════════════ ARCHITECTURE ═══════════════════════ -->
