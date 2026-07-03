@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="shackle-guard",
+    name="shackle",
     version="0.1.0",
     description="A lightweight, framework-agnostic runtime circuit breaker for LLM agents.",
     long_description=open("README.md").read(),
