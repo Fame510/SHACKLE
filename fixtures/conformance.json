@@ -1,0 +1,93 @@
+{
+  "spec": "SHACKLE SP/1.0",
+  "description": "Language-neutral conformance fixtures for the SHACKLE decision core (decide()). Each fixture is a canonical preimage + expected typed output. Any implementation (SHACKLE, a CrewAI adapter, or a receipts layer) can run these vectors and diff results. Canonical hash = SHA-256 of json.dumps(params, sort_keys=True, separators=(',',':')).",
+  "canonicalization": {
+    "hash": "sha256",
+    "serialization": "json, keys sorted ascending, separators (',',':'), UTF-8"
+  },
+  "fixtures": [
+    {
+      "name": "allow_within_thresholds",
+      "config": {"budget_usd": 1.0, "max_repeat_calls": 3},
+      "state": {"budget_initial_usd": 1.0, "budget_remaining_usd": 1.0, "circuit_tripped": false, "total_calls": 0, "seen_nonces": []},
+      "call": {"tool_name": "click", "params": {"target":"search_box","tool":"click"}, "estimated_cost_usd": 0.01, "nonce": 1},
+      "canonical_hash": "f487a46f520575a76a1537f2235bd32acdefa067fc54a69d7e85962650ac7efc",
+      "expected_verdict": "ALLOW",
+      "expected_reason": "within_thresholds"
+    },
+    {
+      "name": "deny_budget_exhausted",
+      "config": {"budget_usd": 1.0},
+      "state": {"budget_initial_usd": 1.0, "budget_remaining_usd": 0.0, "circuit_tripped": false, "seen_nonces": []},
+      "call": {"tool_name": "vlm_call", "params": {"tool":"vlm_call"}, "estimated_cost_usd": 0.02, "nonce": 2},
+      "canonical_hash": "59af4f9ca49e17c7ea781520b47d4a2d1e5ba67e1f4a650fcd4556c79281c0b4",
+      "expected_verdict": "DENY",
+      "expected_reason": "budget_exhausted"
+    },
+    {
+      "name": "deny_max_repeat",
+      "config": {"budget_usd": 0.0, "max_repeat_calls": 2},
+      "state": {"circuit_tripped": false, "last_tool_name": "click", "repeat_counts": {"click": 2}, "seen_nonces": []},
+      "call": {"tool_name": "click", "params": {"target":"submit","tool":"click"}, "nonce": 3, "note": "params_hash equals state.last_tool_params_hash"},
+      "canonical_hash": "3adb796318d4420341c3755e2d1c486f9e31d0cc0150ba75e05e1d43ec0de3cd",
+      "expected_verdict": "DENY",
+      "expected_reason": "max_repeat_exceeded"
+    },
+    {
+      "name": "deny_circuit_open",
+      "config": {"budget_usd": 1.0},
+      "state": {"circuit_tripped": true, "circuit_trip_reason": "prior_deny", "seen_nonces": []},
+      "call": {"tool_name": "click", "params": {"tool":"click"}, "nonce": 4},
+      "canonical_hash": "344f09fbeb62ddddb91ac596d5668e8cb1c3b7b191c36236de5e9d0e3d837a5b",
+      "expected_verdict": "DENY",
+      "expected_reason": "circuit_open"
+    },
+    {
+      "name": "deny_duplicate_nonce",
+      "config": {"budget_usd": 1.0},
+      "state": {"budget_initial_usd": 1.0, "budget_remaining_usd": 1.0, "circuit_tripped": false, "seen_nonces": [7]},
+      "call": {"tool_name": "navigate", "params": {"tool":"navigate","url":"https://x"}, "nonce": 7},
+      "canonical_hash": "dd9cdf1ca09c43c043600ea0c55c43087ba42a2c306800a55d69d5535df8252e",
+      "expected_verdict": "DENY",
+      "expected_reason": "policy_violation:duplicate_nonce"
+    },
+    {
+      "name": "hitl_threshold",
+      "config": {"budget_usd": 1.0, "hitl_mode": "on_threshold", "hitl_budget_threshold": 0.15},
+      "state": {"budget_initial_usd": 1.0, "budget_remaining_usd": 0.10, "circuit_tripped": false, "seen_nonces": []},
+      "call": {"tool_name": "purchase", "params": {"tool":"purchase"}, "estimated_cost_usd": 0.01, "nonce": 8},
+      "canonical_hash": "e5e14e86ecd8af34138ec1cbb11f3c7d91b8a08f0b2c16d50db02c9c437bfd83",
+      "expected_verdict": "HITL",
+      "expected_reason": "budget_threshold"
+    },
+    {
+      "name": "hitl_always",
+      "config": {"budget_usd": 1.0, "hitl_mode": "always"},
+      "state": {"budget_initial_usd": 1.0, "budget_remaining_usd": 1.0, "circuit_tripped": false, "seen_nonces": []},
+      "call": {"tool_name": "any", "params": {"tool":"any"}, "estimated_cost_usd": 0.0, "nonce": 9},
+      "canonical_hash": "5788c7b1d89e5fef76c74725b5dd91dbc26e4649c47378fe62c0e228246e32ea",
+      "expected_verdict": "HITL",
+      "expected_reason": "hitl_all_calls"
+    },
+    {
+      "name": "malformed_non_canonical_input",
+      "config": {"budget_usd": 1.0},
+      "state": {"budget_initial_usd": 1.0, "budget_remaining_usd": 1.0, "circuit_tripped": false, "seen_nonces": []},
+      "call": {"tool_name": "click", "params": {"tool":"click"}, "nonce": 10, "note": "implementations MUST reject NaN/Inf, non-string keys, and MUST sort keys before hashing; a differing hash for logically-equal params is a conformance failure"},
+      "canonical_hash": "344f09fbeb62ddddb91ac596d5668e8cb1c3b7b191c36236de5e9d0e3d837a5b",
+      "expected_verdict": "DENY",
+      "expected_reason": "policy_violation:malformed_input",
+      "conformance_note": "Deterministic rejection of non-canonicalizable input. Well-formed equivalents must produce the canonical_hash shown."
+    },
+    {
+      "name": "untestable_opaque_context",
+      "config": {"budget_usd": 1.0},
+      "state": {"budget_initial_usd": 1.0, "budget_remaining_usd": 1.0, "circuit_tripped": false, "seen_nonces": []},
+      "call": {"tool_name": "click", "params": {"ctx":"opaque","tool":"click"}, "nonce": 11},
+      "canonical_hash": "a2e517b90a86d6646c6fa9b7821d1463550780d02b53c1900c99059edbaa29db",
+      "expected_verdict": "HITL",
+      "expected_reason": "fail_closed:opaque_context",
+      "conformance_note": "When context cannot be evaluated deterministically, implementations MUST fail closed (HITL or DENY), never silent ALLOW."
+    }
+  ]
+}
