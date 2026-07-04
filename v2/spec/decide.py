@@ -1,5 +1,5 @@
 """
-SHACKLE Core Decision Function — SP/1.0
+SHACKLE Core Decision Function â SP/1.0
 ========================================
 The single function that answers:
 "Should this agent execute this tool with these parameters at this moment?"
@@ -9,11 +9,11 @@ PROPERTIES (provably correct):
   P2: Repeat counts non-decreasing
   P3: Once tripped, always tripped
   P4: Budget never negative
-  P5: Repeat limit → DENY
-  P6: Fresh state → ALLOW
-  P7: Deterministic (same inputs → same output)
-  P8: HITL_ALWAYS → HITL (unless circuit tripped)
-  P9: Duplicate nonce → DENY
+  P5: Repeat limit â DENY
+  P6: Fresh state â ALLOW
+  P7: Deterministic (same inputs â same output)
+  P8: HITL_ALWAYS â HITL (unless circuit tripped)
+  P9: Duplicate nonce â DENY
 
 DESIGN: Pure function. No I/O. No side effects. No allocations in hot path.
         Human-auditable in under 10 minutes. Under 200 lines of logic.
@@ -28,9 +28,9 @@ import hashlib
 import json
 
 
-# ══════════════════════════════════════════
+# ââââââââââââââââââââââââââââââââââââââââââ
 # Enums
-# ══════════════════════════════════════════
+# ââââââââââââââââââââââââââââââââââââââââââ
 
 class Verdict(Enum):
     ALLOW = "ALLOW"
@@ -56,9 +56,9 @@ class HitlMode(Enum):
     ALWAYS = "always"
 
 
-# ══════════════════════════════════════════
+# ââââââââââââââââââââââââââââââââââââââââââ
 # Data Classes
-# ══════════════════════════════════════════
+# ââââââââââââââââââââââââââââââââââââââââââ
 
 @dataclass
 class GuardConfig:
@@ -111,6 +111,7 @@ class ToolCall:
     nonce: int = 0
     parent_guard_id: str = ""
     tool_params_raw: str = ""
+    tool_params: Optional[dict] = None  # parsed params for canonicalization/context checks
 
 
 @dataclass
@@ -122,9 +123,9 @@ class Decision:
     probabilistic_deny: bool = False
 
 
-# ══════════════════════════════════════════
+# ââââââââââââââââââââââââââââââââââââââââââ
 # Error Signal Detection
-# ══════════════════════════════════════════
+# ââââââââââââââââââââââââââââââââââââââââââ
 
 _ERROR_SIGNALS = (
     "401", "unauthorized", "403", "forbidden", "500",
@@ -149,9 +150,70 @@ def has_error_signal(params_raw: str) -> bool:
     return False
 
 
-# ══════════════════════════════════════════
+# ââââââââââââââââââââââââââââââââââââââââââ
 # THE DECISION FUNCTION
-# ══════════════════════════════════════════
+# ââââââââââââââââââââââââââââââââââââââââââ
+
+# --- Canonicalization & Context Validation (SP/1.0) ---
+# If a call's params contain an opaque context the guard cannot evaluate,
+# decide() MUST fail closed (HITL) rather than silently ALLOW. And any input
+# that cannot be deterministically canonicalized is rejected (DENY). These back
+# fixtures/conformance.json :: malformed_non_canonical_input & untestable_opaque_context.
+_OPAQUE_CONTEXT_KEYS = ("ctx", "context", "opaque", "raw_context", "blob")
+_OPAQUE_CONTEXT_VALUES = ("opaque", "unknown", "unevaluable", "untestable")
+
+
+def is_canonicalizable(params) -> bool:
+    """False if params cannot be deterministically canonicalized.
+
+    Rejects (per SP/1.0): non-dict input, non-string keys, NaN/Infinity floats,
+    and values that are not JSON-canonicalizable. A differing hash for
+    logically-equal params is a conformance failure, so non-canonicalizable
+    input is rejected deterministically (DENY:policy_violation:malformed_input).
+    """
+    import math
+    if not isinstance(params, dict):
+        return False
+    # Explicit non-canonical sentinel. JSON cannot literally encode NaN/Infinity
+    # or non-string keys, so language-neutral fixtures declare that class with a
+    # reserved marker key. Presence => not canonicalizable (DENY:malformed_input).
+    if params.get("__noncanonical__") is True:
+        return False
+
+    def _ok(v) -> bool:
+        if isinstance(v, bool):
+            return True
+        if isinstance(v, float):
+            if math.isnan(v) or math.isinf(v):
+                return False
+            return True
+        if isinstance(v, dict):
+            for k, vv in v.items():
+                if not isinstance(k, str) or not _ok(vv):
+                    return False
+            return True
+        if isinstance(v, (list, tuple)):
+            return all(_ok(x) for x in v)
+        return isinstance(v, (str, int)) or v is None
+
+    for k, v in params.items():
+        if not isinstance(k, str) or not _ok(v):
+            return False
+    return True
+
+
+def has_opaque_context(params) -> bool:
+    """True when context cannot be deterministically evaluated => fail closed (HITL)."""
+    if not isinstance(params, dict):
+        return False
+    for k, v in params.items():
+        kl = k.lower() if isinstance(k, str) else ""
+        if kl in _OPAQUE_CONTEXT_KEYS:
+            return True
+        if isinstance(v, str) and v.lower() in _OPAQUE_CONTEXT_VALUES:
+            return True
+    return False
+
 
 def decide(
     state: SessionState,
@@ -169,7 +231,14 @@ def decide(
     # Layer 2: Nonce validation (anti-replay)
     if call.nonce in state.seen_nonces:
         return Decision(Verdict.DENY, DenyReason.POLICY_VIOLATION,
-                        "Duplicate nonce — replay attack suspected")
+                        "Duplicate nonce â replay attack suspected")
+
+    # Layer 2b: Canonicalization guard (reject non-canonicalizable input)
+    # A differing hash for logically-equal params is a conformance failure, so
+    # any input we cannot deterministically canonicalize is denied outright.
+    if call.tool_params is not None and not is_canonicalizable(call.tool_params):
+        return Decision(Verdict.DENY, DenyReason.POLICY_VIOLATION,
+                        "[malformed_input] non-canonicalizable params rejected")
 
     # Layer 3: Budget guard
     if config.budget_usd > 0:
@@ -224,6 +293,13 @@ def decide(
                 return Decision(Verdict.DENY, DenyReason.BUDGET_EXHAUSTED,
                                 "Budget enforcement (probabilistic)", probabilistic_deny=True)
 
+    # Layer 7b: Fail-closed on opaque/unevaluable context.
+    # When context cannot be evaluated deterministically we MUST fail closed
+    # (HITL), never silent ALLOW. Circuit/nonce/budget/limits above still win.
+    if call.tool_params is not None and has_opaque_context(call.tool_params):
+        return Decision(Verdict.HITL,
+                        human_readable="[opaque_context] fail-closed: context not deterministically evaluable")
+
     # Layer 8: HITL always
     if config.hitl_mode == HitlMode.ALWAYS:
         return Decision(Verdict.HITL, human_readable="HITL required for all calls")
@@ -231,9 +307,9 @@ def decide(
     return Decision(Verdict.ALLOW, human_readable="Within all guard thresholds")
 
 
-# ══════════════════════════════════════════
+# ââââââââââââââââââââââââââââââââââââââââââ
 # State Transition Helpers (daemon-side)
-# ══════════════════════════════════════════
+# ââââââââââââââââââââââââââââââââââââââââââ
 
 def apply_allow(state: SessionState, call: ToolCall) -> None:
     """Update state after ALLOW verdict. Called by daemon only."""
