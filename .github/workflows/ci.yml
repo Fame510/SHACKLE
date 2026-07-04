@@ -5,12 +5,12 @@ name: SHACKLE CI
 
 on:
   push:
-    branches: [master, v2]
+    branches: [master, v2, "feat/**", "fix/**"]
   pull_request:
     branches: [master]
 
 jobs:
-  # ── Property Tests (Python) ──
+  # ââ Property Tests (Python) ââ
   test-properties:
     runs-on: ubuntu-latest
     strategy:
@@ -27,14 +27,14 @@ jobs:
       - name: Run property tests
         run: |
           cd v2/tests
-          python -m pytest test_decide_properties.py -v --tb=short
+          python -m pytest . -v --tb=short
       - name: Run daemon tests
         run: |
           cd v2/daemon
           pip install -r requirements.txt
-          python -m pytest test_daemon.py -v --tb=short || echo "Daemon tests require running daemon — skipping integration tests"
+          python -m pytest test_daemon.py -v --tb=short || echo "Daemon tests require running daemon â skipping integration tests"
 
-  # ── Performance Benchmark ──
+  # ââ Performance Benchmark ââ
   benchmark:
     runs-on: ubuntu-latest
     steps:
@@ -64,10 +64,10 @@ jobs:
           mean = statistics.mean(times)
           print(f'decide() mean: {mean:.4f} ms')
           assert mean < 0.15, f'decide() too slow: {mean:.4f} ms > 0.15 ms'
-          print('✅ Within performance budget')
+          print('â Within performance budget')
           "
 
-  # ── Protocol Validation ──
+  # ââ Protocol Validation ââ
   validate-proto:
     runs-on: ubuntu-latest
     steps:
@@ -78,9 +78,9 @@ jobs:
         run: |
           protoc --proto_path=v2/protocol --descriptor_set_out=/dev/null v2/protocol/shackle.proto
           protoc --proto_path=v2/protocol --descriptor_set_out=/dev/null v2/protocol/shackle_service.proto
-          echo "✅ All proto files valid"
+          echo "â All proto files valid"
 
-  # ── TypeScript Build ──
+  # ââ TypeScript Build ââ
   build-typescript:
     runs-on: ubuntu-latest
     steps:
@@ -94,7 +94,7 @@ jobs:
           npm install
           npx tsc --noEmit shackle-client.ts 2>/dev/null || echo "TypeScript check passed (no tsconfig yet)"
 
-  # ── Docker Build ──
+  # ââ Docker Build ââ
   docker-build:
     runs-on: ubuntu-latest
     steps:
@@ -104,7 +104,7 @@ jobs:
       - name: Build license server image
         run: docker build -t shackle-license v2/compliance/
 
-  # ── Security Scan ──
+  # ââ Security Scan ââ
   security-scan:
     runs-on: ubuntu-latest
     steps:
@@ -117,5 +117,5 @@ jobs:
         run: |
           # Scan for accidental credential commits
           if git log -1 --name-only | grep -qE '(\.env|secret|credential|password|token|key)'; then
-            echo "⚠ Warning: potential secret files in commit"
+            echo "â  Warning: potential secret files in commit"
           fi
