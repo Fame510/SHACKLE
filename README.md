@@ -3,8 +3,25 @@
 [![License: AGPLv3](https://img.shields.io/badge/License-AGPLv3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 
-> **The 1-Line Runtime Circuit Breaker for Autonomous AI Agents.**
-> Stop runaway token loops, unhandled tool cascades, and accidental $4,000 API bills before they happen.
+> **The 1-Line Runtime Circuit Breaker — and the SP/1.0 Conformance Standard — for Autonomous AI Agents.**
+> Stop runaway token loops, unhandled tool cascades, and accidental $4,000 API bills before they happen — and prove your runtime enforces the mediation contract with verifiable conformance fixtures.
+
+---
+
+## 🔒 SP/1.0 — The Conformance Standard
+
+SHACKLE is not only a runtime circuit breaker — it is the **authored, verifiable conformance standard** for runtime mediation of agent tool calls.
+
+- **Decision surface:** `ALLOW` / `DENY` / `HITL`
+- **Conformance model:** `Valid(τ) ⇔ Required(τ) ⊆ Supported(τ)`
+- **14 hash-verifiable conformance vectors** in [`fixtures/conformance.json`](fixtures/conformance.json) — 9 decision-core + 5 HITL transition cases (approve / reject / modify / defer-escalate / duplicate-resume)
+- **Pure reference implementation:** [`shackle/conformance.py`](shackle/conformance.py) — a stdlib-only `decide(config, state, call) -> (verdict, reason)`
+- **Executable proof:** `pytest tests/test_conformance.py` runs every vector against the reference
+- **Core invariant:** *history-visible ≠ runtime-executable* — a record that an action happened is not proof the transition was supported
+
+A runtime is **SHACKLE-conformant** iff it passes the published fixture set — provable by **reproduction, not assertion**. See **[CONFORMANCE.md](CONFORMANCE.md)** for the full specification and how to claim conformance. The fixture hashes have been independently reproduced by third parties.
+
+**Authorship & provenance:** SHACKLE, the `Required ⊆ Supported` conformance model, the `decide()` surface, and the HITL transition contract are authored by **Dante Bullock ([@Fame510](https://github.com/Fame510))**, sole author. First published 2026-06-17.
 
 ---
 
@@ -285,19 +302,13 @@ consultant who'll Google "what is CrewAI" on your dime:
 
 Ã°ÂÂÂ§ **docspoc101@gmail.com**
 
-### Ã°ÂÂÂ³ Ready to Start? Pay Here
+### Production & Implementation Inquiries
 
-**[Ã¢ÂÂ Pay $2,500 Ã¢ÂÂ SHACKLE Implementation + Architecture Audit Ã¢ÂÂ](https://buy.stripe.com/6oU28q54DbsXdpV6Hy9sk00)**
+Deploying SHACKLE in production, or need your runtime certified against the SP/1.0
+fixtures? This is a conversation, not a checkout.
 
-*After payment, email docspoc101@gmail.com with your repo link. I'll respond
-within 4 hours to schedule your architecture audit.*
+📧 **docspoc101@gmail.com** — architecture audits, custom configuration, and
+conformance guidance for teams shipping agent products.
 
-**What you get:**
-- Architecture audit of your agent topology
-- Custom SHACKLE configuration for your specific models and tools
-- Integration with your existing codebase (one decorator, zero refactors)
-- 30-day guarantee: if SHACKLE doesn't catch a loop in 30 days, I fix it free
-
-Most clients recover this cost in their first two weeks of API savings.
-Serious inquiries only. You'll speak directly to the engineer who built it.
+You'll speak directly to the engineer who authored the standard.
 
