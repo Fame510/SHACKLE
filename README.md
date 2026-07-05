@@ -27,6 +27,18 @@ A runtime is **SHACKLE-conformant** iff it passes the published fixture set — 
 
 ---
 
+## Integrations (LiteLLM + AutoGen)
+
+SHACKLE now ships first-class governance for the biggest chokepoints in the agent stack. See **[INTEGRATIONS.md](INTEGRATIONS.md)** for full usage and LiteLLM proxy `config.yaml` examples.
+
+- **LiteLLM guardrail** (`shackle/litellm_shackle_guardrail.py`) — enforce SP/1.0 on any LiteLLM-powered agent (CrewAI, AutoGen, LangGraph, custom):
+  - `ShackleGuardrail` — Option A, backed directly by the pure SP/1.0 reference `decide()` (conformance-exact, dependency-light).
+  - `ShackleEngineGuardrail` — Option B, driven by the full `TriggerEngine` (stateful budget / repeat / timeout).
+  - Both provide sync `check()`/`record()` for the SDK and `async_pre_call_hook`/`async_post_call_success_hook` for the LiteLLM proxy. `litellm` is an optional dependency.
+- **AutoGen wrapper** (`shackle/autogen_shackle_wrapper.py`) — `wrap_tool` decorator + `create_shackle_agent` factory that govern AutoGen tool calls through the same engine. AutoGen is optional; `wrap_tool` works without it.
+
+One integration = coverage for the whole supply chain: because LiteLLM sits under most agent frameworks, the guardrail governs them through a single chokepoint. All decisions trace to the hash-pinned fixtures in `fixtures/conformance.json`.
+
 ## Provenance
 
 SHACKLE was built by **Dante Bullock**, a 52-year-old self-taught systems architect and
