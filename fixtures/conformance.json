@@ -1,6 +1,6 @@
 {
   "spec": "SHACKLE SP/1.0",
-  "description": "Language-neutral conformance fixtures for the SHACKLE decision core (decide()). Each fixture is a canonical preimage + expected typed output. Any implementation (SHACKLE, a CrewAI adapter, or a receipts layer) can run these vectors and diff results. Canonical hash = SHA-256 of json.dumps(params, sort_keys=True, separators=(',',':')). v1.1 adds the five HITL transition fixtures (approve/reject/modify/defer-escalate/duplicate-resume) defined in CONFORMANCE.md §3; core invariant: history-visible is not runtime-executable.",
+  "description": "Language-neutral conformance fixtures for the SHACKLE decision core (decide()). Each fixture is a canonical preimage + expected typed output. Any implementation (SHACKLE, a CrewAI adapter, or a receipts layer) can run these vectors and diff results. Canonical hash = SHA-256 of json.dumps(params, sort_keys=True, separators=(',',':')). v1.1 adds the five HITL transition fixtures (approve/reject/modify/defer-escalate/duplicate-resume) from CONFORMANCE.md §3; invariant: history-visible is not runtime-executable. A pure reference implementation lives at shackle/conformance.py (decide()).",
   "canonicalization": {
     "hash": "sha256",
     "serialization": "json, keys sorted ascending, separators (',',':'), UTF-8"
@@ -382,7 +382,7 @@
         "hitl_mode": "on_threshold"
       },
       "conformance_note": "DUPLICATE RESUME: resume/re-dispatch against a call in a terminal state (rejected or superseded) MUST be no-effect and fail closed (DENY). History-visible is not runtime-executable. nonce=25 already in seen_nonces reinforces replay rejection.",
-      "expected_reason": "hitl_transition:duplicate_resume_no_effect",
+      "expected_reason": "policy_violation:duplicate_resume_no_effect",
       "expected_verdict": "DENY",
       "name": "hitl_transition_duplicate_resume",
       "state": {
@@ -411,6 +411,7 @@
       "defer_escalate",
       "duplicate_resume"
     ],
-    "spec_ref": "CONFORMANCE.md#3-hitl-transition-contract-five-canonical-cases"
+    "spec_ref": "CONFORMANCE.md#3",
+    "reference_impl": "shackle/conformance.py"
   }
 }
