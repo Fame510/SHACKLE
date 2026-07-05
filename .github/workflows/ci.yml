@@ -52,6 +52,18 @@ jobs:
       - name: t_ag_agent
         continue-on-error: true
         run: python -m pytest tests/test_autogen_wrapper.py -v -k test_create_shackle_agent_without_autogen_raises
+      - name: d_combo_litellm_autogen
+        continue-on-error: true
+        run: python -m pytest tests/test_litellm_guardrail.py tests/test_autogen_wrapper.py -v --tb=short
+      - name: d_combo_conf_autogen
+        continue-on-error: true
+        run: python -m pytest tests/test_conformance.py tests/test_autogen_wrapper.py -v --tb=short
+      - name: d_combo_core_autogen
+        continue-on-error: true
+        run: python -m pytest tests/test_core.py tests/test_autogen_wrapper.py -v --tb=short
+      - name: d_full_tb_line
+        continue-on-error: true
+        run: python -m pytest tests/ --tb=line -q
       - name: Run full test suite (gating)
         run: python -m pytest tests/ -v --tb=short
       - name: Standalone conformance harness (informational)
