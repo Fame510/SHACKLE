@@ -32,7 +32,21 @@ jobs:
           pip install pytest rich
           pip install -e . || echo "no installable package metadata; running against source tree"
       - name: Run conformance + core tests
-        run: python -m pytest tests/ -q --tb=short
+        run: |
+          set +e
+          python -m pytest tests/ -rA --tb=long > pytest_full.txt 2>&1
+          code=$?
+          echo "EXIT_CODE=$code" >> pytest_full.txt
+          exit 0
+      - name: Upload pytest output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-output-${{ matrix.python-version }}
+          path: pytest_full.txt
+      - name: Fail if tests failed
+        run: |
+          grep -q "EXIT_CODE=0" pytest_full.txt || (echo "tests failed"; tail -5 pytest_full.txt; exit 1)
       - name: Standalone conformance harness (informational)
         # pytest above already runs these vectors; this is a redundant direct
         # invocation for humans. Run from repo root so 'import shackle' resolves,
