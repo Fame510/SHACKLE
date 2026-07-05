@@ -20,6 +20,11 @@ Implementations MUST:
 circuit breaker · nonce/replay · budget · repeat (incl. error amplification) ·
 window · global cap · probabilistic jitter · HITL (threshold / always).
 
+**HITL transition contract (SP/1.0 §3):** approve · reject · modify · defer/escalate ·
+duplicate-resume. Core invariant: *history-visible ≠ runtime-executable.* These five
+transition vectors (added v1.1) live alongside the decision-core vectors in `conformance.json`
+(14 fixtures total).
+
 ## Control vs. evidence
 `decide()` returns only the **control** verdict (ALLOW/DENY/HITL) with zero I/O.
 The signed, hash-chained **audit ledger** is a separate evidence layer written after
