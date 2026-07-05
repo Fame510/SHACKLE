@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SHACKLE â Runtime Circuit Breaker for Autonomous AI Agents</title>
-<meta name="description" content="The 1-Line Runtime Circuit Breaker for Autonomous AI Agents. Stop runaway token loops before they burn your wallet. Built by Dante Bullock, Sovereign Logic.">
+<title>SHACKLE — Runtime Circuit Breaker & SP/1.0 Conformance Standard for Autonomous AI Agents</title>
+<meta name="description" content="SHACKLE: the 1-Line Runtime Circuit Breaker and the SP/1.0 Conformance Standard for Autonomous AI Agents. Stop runaway token loops — and prove your runtime enforces the mediation contract with 14 verifiable conformance fixtures. Built by Dante Bullock, Sovereign Logic.">
 <style>
   /* âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
      SHACKLE â BRUTALIST DEFENSE-GRADE INDUSTRIAL
@@ -694,6 +694,13 @@
       text-align: center;
     }
   }
+
+    /* SP/1.0 Standard section */
+    .standard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.25rem; margin-top: 2rem; }
+    .standard-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 1.25rem 1.35rem; }
+    .standard-card h4 { margin: 0 0 .5rem 0; font-size: 1.02rem; }
+    .standard-card p { margin: 0; opacity: .85; font-size: .93rem; line-height: 1.5; }
+    .standard-card code { background: rgba(255,255,255,0.08); padding: .05em .35em; border-radius: 5px; font-size: .86em; }
 </style>
 </head>
 <body>
@@ -1051,7 +1058,52 @@
 </section>
 
 <!-- âââââââââââââââââââââââ SOCIAL PROOF âââââââââââââââââââââââ -->
-<section class="section section-dark">
+<section class="section section-dark" id="standard">
+    <div class="container">
+      <div class="section-label">// The Standard</div>
+      <h2>From Circuit Breaker to Standard.</h2>
+      <p class="section-intro">
+        SHACKLE started as a runtime circuit breaker. It is now the <strong>SP/1.0 conformance standard</strong>
+        for runtime mediation of agent tool calls &mdash; an authored, verifiable contract that any runtime can be
+        tested against.
+      </p>
+
+      <div class="standard-grid">
+        <div class="standard-card">
+          <h4>Typed Decision Surface</h4>
+          <p><code>ALLOW</code> / <code>DENY</code> / <code>HITL</code> &mdash; a small, closed verdict set with typed reasons,
+          not free-text guesses.</p>
+        </div>
+        <div class="standard-card">
+          <h4>Conformance Model</h4>
+          <p><code>Valid(&tau;) &hArr; Required(&tau;) &sube; Supported(&tau;)</code>. A transition is valid iff every required
+          capability is supported.</p>
+        </div>
+        <div class="standard-card">
+          <h4>14 Verifiable Fixtures</h4>
+          <p>9 decision-core + 5 HITL transition cases (approve / reject / modify / defer-escalate / duplicate-resume),
+          each a hash-verifiable vector.</p>
+        </div>
+        <div class="standard-card">
+          <h4>Reference Implementation</h4>
+          <p>A stdlib-only <code>decide()</code> produces every verdict. Run <code>pytest tests/test_conformance.py</code>
+          to prove conformance.</p>
+        </div>
+      </div>
+
+      <p class="section-intro" style="margin-top:2rem;">
+        <strong>The core invariant:</strong> <em>history-visible &ne; runtime-executable.</em> A record that an action
+        happened is not proof the transition was supported. A runtime is <strong>SHACKLE-conformant</strong> iff it passes
+        the published fixtures &mdash; provable by reproduction, not assertion.
+      </p>
+      <div style="text-align:center; margin-top:2rem;">
+        <a href="https://github.com/Fame510/SHACKLE/blob/master/CONFORMANCE.md" class="btn btn-primary">Read the SP/1.0 Spec &rarr;</a>
+        <a href="https://github.com/Fame510/SHACKLE/blob/master/fixtures/conformance.json" class="btn btn-ghost">View the Fixtures &rarr;</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section-dark">
   <span class="section-label">// Testimonials</span>
   <h2>What Developers Say.</h2>
 
@@ -1111,17 +1163,16 @@
     </div>
 
     <div class="pricing-tier featured">
-      <h4>Implementation + Audit</h4>
-      <div class="price">$2,500</div>
+      <h4>Production & Conformance</h4>
+      <div class="price">Let's talk</div>
       <ul>
         <li>Architecture audit of your agent topology</li>
-        <li>Custom SHACKLE configuration</li>
-        <li>Integration with your codebase</li>
-        <li>Direct engineer access (not support tickets)</li>
-        <li>30-day guarantee â catches a loop or it's free</li>
-        <li>Same-day response (within 4 hours)</li>
+        <li>Custom SHACKLE configuration for your models & tools</li>
+        <li>Conformance guidance against the SP/1.0 fixtures</li>
+        <li>Direct access to the engineer who authored the standard</li>
+        <li>Integration with your codebase (one decorator, zero refactors)</li>
       </ul>
-      <a href="https://buy.stripe.com/6oU28q54DbsXdpV6Hy9sk00" class="btn btn-primary">Book Implementation â</a>
+      <a href="mailto:docspoc101@gmail.com?subject=SHACKLE%20Production%20Inquiry" class="btn btn-primary">Get in Touch →</a>
     </div>
 
     <div class="pricing-tier">
