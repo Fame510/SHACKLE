@@ -33,7 +33,15 @@ jobs:
           pip install -e . || echo "no installable package metadata; running against source tree"
       - name: Run conformance + core tests
         run: |
-          python -m pytest tests/ -v --tb=short
+          set -o pipefail
+          python -m pytest tests/ -v --tb=short 2>&1 | tee /tmp/pytest_out.txt
+      - name: Publish pytest output to step summary
+        if: always()
+        run: |
+          echo "### pytest output" >> "$GITHUB_STEP_SUMMARY"
+          echo "```" >> "$GITHUB_STEP_SUMMARY"
+          tail -n 120 /tmp/pytest_out.txt >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || echo "(no output)" >> "$GITHUB_STEP_SUMMARY"
+          echo "```" >> "$GITHUB_STEP_SUMMARY"
       - name: Standalone conformance harness (informational)
         # pytest above already runs these vectors; this is a redundant direct
         # invocation for humans. Run from repo root so 'import shackle' resolves,
