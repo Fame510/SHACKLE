@@ -723,9 +723,7 @@
   </div>
 
   <p class="hero-subtitle">
-    SHACKLE is the 1-line runtime circuit breaker that stops autonomous agents
-    from burning your API budget in silent infinite loops. Works with CrewAI,
-    LangGraph, AutoGen â zero refactoring.
+    SHACKLE is the 1-line runtime circuit breaker that catches autonomous agents in silent infinite loops and halts the run before the next call &mdash; capping the bleed instead of letting it run unbounded. Works with CrewAI, LangGraph, AutoGen (sync &amp; async) &mdash; zero refactoring.
   </p>
 
   <div class="hero-cta">
@@ -1095,6 +1093,11 @@
         <strong>The core invariant:</strong> <em>history-visible &ne; runtime-executable.</em> A record that an action
         happened is not proof the transition was supported. A runtime is <strong>SHACKLE-conformant</strong> iff it passes
         the published fixtures &mdash; provable by reproduction, not assertion.
+      </p>
+      <p class="section-intro" style="margin-top:1rem; font-size:.92rem; opacity:.8;">
+        <strong>Honest scope:</strong> the conformance layer (spec + 14 fixtures + reference <code>decide()</code>) is the
+        verified standard. The <code>@Guard</code> runtime is the reference integration &mdash; it uses the same canonical-hashing
+        discipline and is tested on Python 3.10&ndash;3.12, with a literal runtime&rarr;<code>decide()</code> wiring on the roadmap.
       </p>
       <div style="text-align:center; margin-top:2rem;">
         <a href="https://github.com/Fame510/SHACKLE/blob/master/CONFORMANCE.md" class="btn btn-primary">Read the SP/1.0 Spec &rarr;</a>
