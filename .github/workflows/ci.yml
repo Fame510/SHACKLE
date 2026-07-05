@@ -31,41 +31,8 @@ jobs:
           python -m pip install --upgrade pip
           pip install pytest rich
           pip install -e . || echo "no installable package metadata; running against source tree"
-      - name: t_core_conformance
-        continue-on-error: true
-        run: python -m pytest tests/ -v --tb=short --ignore=tests/test_autogen_wrapper.py
-      - name: t_ag_allow_first
-        continue-on-error: true
-        run: python -m pytest tests/test_autogen_wrapper.py -v -k test_wrap_tool_allows_first_call
-      - name: t_ag_repeat
-        continue-on-error: true
-        run: python -m pytest tests/test_autogen_wrapper.py -v -k test_wrap_tool_blocks_on_repeat
-      - name: t_ag_distinct
-        continue-on-error: true
-        run: python -m pytest tests/test_autogen_wrapper.py -v -k test_wrap_tool_distinct_inputs_pass
-      - name: t_ag_bare
-        continue-on-error: true
-        run: python -m pytest tests/test_autogen_wrapper.py -v -k test_wrap_tool_bare_decorator_form
-      - name: t_ag_async
-        continue-on-error: true
-        run: python -m pytest tests/test_autogen_wrapper.py -v -k test_wrap_tool_async
-      - name: t_ag_agent
-        continue-on-error: true
-        run: python -m pytest tests/test_autogen_wrapper.py -v -k test_create_shackle_agent_without_autogen_raises
-      - name: d_combo_litellm_autogen
-        continue-on-error: true
-        run: python -m pytest tests/test_litellm_guardrail.py tests/test_autogen_wrapper.py -v --tb=short
-      - name: d_combo_conf_autogen
-        continue-on-error: true
-        run: python -m pytest tests/test_conformance.py tests/test_autogen_wrapper.py -v --tb=short
-      - name: d_combo_core_autogen
-        continue-on-error: true
-        run: python -m pytest tests/test_core.py tests/test_autogen_wrapper.py -v --tb=short
-      - name: d_full_tb_line
-        continue-on-error: true
-        run: python -m pytest tests/ --tb=line -q
-      - name: Run full test suite (gating)
-        run: python -m pytest tests/ -v --tb=short
+      - name: Run conformance + core tests
+        run: python -m pytest tests/ -q --tb=short
       - name: Standalone conformance harness (informational)
         # pytest above already runs these vectors; this is a redundant direct
         # invocation for humans. Run from repo root so 'import shackle' resolves,
