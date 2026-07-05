@@ -20,7 +20,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from pydantic import BaseModel, Field
 
 from state import StateManager
-from audit import AuditLogger
+from audit import AuditLogger, load_signing_key
 
 # Configure logging
 logging.basicConfig(
@@ -87,7 +87,15 @@ async def lifespan(app: FastAPI):
     state_manager = StateManager(redis_url)
     await state_manager.connect()
     
-    audit_logger = AuditLogger(postgres_url)
+    # Load a persistent signing key (env/file) so the audit trail verifies across
+    # restarts. Falls back to an ephemeral key with a loud warning if unset.
+    signing_key, key_is_persistent = load_signing_key()
+    if not key_is_persistent:
+        logger.warning(
+            "Audit signing key is EPHEMERAL. Set SHACKLE_SIGNING_KEY (ideally from a "
+            "secrets manager) so audit records remain verifiable after restarts."
+        )
+    audit_logger = AuditLogger(postgres_url, signing_key=bytes(signing_key))
     await audit_logger.connect()
     
     logger.info("SHACKLE Daemon ready")
@@ -132,87 +140,68 @@ async def pre_exec(req: PreExecRequest):
     logger.info(f"pre_exec: {req.session_id} | {req.tool_name}")
     
     try:
-        # Check budget
-        budget_ok = await state_manager.check_budget(
-            req.session_id,
-            req.estimated_cost
+        # Atomic budget + repeat evaluation. This single Redis round-trip replaces
+        # the previous check_budget -> check_repeat_call -> get_repeat_count ->
+        # record_call sequence, eliminating the TOCTOU race where two concurrent
+        # requests on the same session could both pass before either was recorded.
+        evaluation = await state_manager.evaluate_and_record(
+            session_id=req.session_id,
+            tool_name=req.tool_name,
+            parameters=req.parameters,
+            estimated_cost=req.estimated_cost,
+            max_repeat=3,
         )
-        
-        if not budget_ok:
+        decision = evaluation["decision"]
+        repeat_count = evaluation["repeat_count"]
+
+        if decision == "DENY":
             await audit_logger.log_decision(
                 session_id=req.session_id,
                 tool_name=req.tool_name,
                 decision="DENY",
-                reason="Budget exceeded"
+                reason="Budget exceeded",
             )
+            return PreExecResponse(decision="DENY", reason="Budget exceeded")
+
+        if decision == "HITL":
+            hitl_token = f"hitl_{req.session_id}_{datetime.utcnow().timestamp()}"
+
+            await audit_logger.log_decision(
+                session_id=req.session_id,
+                tool_name=req.tool_name,
+                decision="HITL",
+                reason=f"Repeat call detected ({repeat_count} times)",
+            )
+
+            # Create future for HITL response
+            hitl_pending[hitl_token] = asyncio.Future()
+
+            # Notify WebSocket clients
+            await broadcast_hitl_request({
+                "hitl_token": hitl_token,
+                "session_id": req.session_id,
+                "tool_name": req.tool_name,
+                "parameters": req.parameters,
+                "reason": f"Repeat call ({repeat_count} times)",
+                "timestamp": datetime.utcnow().isoformat(),
+            })
+
             return PreExecResponse(
-                decision="DENY",
-                reason="Budget exceeded"
+                decision="HITL",
+                reason=f"Repeat call detected ({repeat_count} times)",
+                hitl_token=hitl_token,
             )
-        
-        # Check repeat call patterns
-        is_repeat = await state_manager.check_repeat_call(
-            req.session_id,
-            req.tool_name,
-            req.parameters
-        )
-        
-        if is_repeat:
-            repeat_count = await state_manager.get_repeat_count(
-                req.session_id,
-                req.tool_name,
-                req.parameters
-            )
-            
-            if repeat_count > 3:
-                # Too many repeats - trigger HITL
-                hitl_token = f"hitl_{req.session_id}_{datetime.utcnow().timestamp()}"
-                
-                await audit_logger.log_decision(
-                    session_id=req.session_id,
-                    tool_name=req.tool_name,
-                    decision="HITL",
-                    reason=f"Repeat call detected ({repeat_count} times)"
-                )
-                
-                # Create future for HITL response
-                hitl_pending[hitl_token] = asyncio.Future()
-                
-                # Notify WebSocket clients
-                await broadcast_hitl_request({
-                    "hitl_token": hitl_token,
-                    "session_id": req.session_id,
-                    "tool_name": req.tool_name,
-                    "parameters": req.parameters,
-                    "reason": f"Repeat call ({repeat_count} times)",
-                    "timestamp": datetime.utcnow().isoformat()
-                })
-                
-                return PreExecResponse(
-                    decision="HITL",
-                    reason=f"Repeat call detected ({repeat_count} times)",
-                    hitl_token=hitl_token
-                )
-        
-        # Record this call for repeat detection
-        await state_manager.record_call(
-            req.session_id,
-            req.tool_name,
-            req.parameters
-        )
-        
+
+        # ALLOW: the call was already recorded atomically inside evaluate_and_record.
         await audit_logger.log_decision(
             session_id=req.session_id,
             tool_name=req.tool_name,
             decision="ALLOW",
-            reason="Passed budget and repeat checks"
+            reason="Passed budget and repeat checks",
         )
-        
-        return PreExecResponse(
-            decision="ALLOW",
-            reason="Passed all checks"
-        )
-        
+
+        return PreExecResponse(decision="ALLOW", reason="Passed all checks")
+
     except Exception as e:
         logger.error(f"Error in pre_exec: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
