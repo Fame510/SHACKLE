@@ -245,7 +245,8 @@ class StateManager:
     local count = 0
     for i, item in ipairs(history) do
         -- match on the stored hash field without full JSON decode
-        if string.find(item, '"hash":"' .. call_hash .. '"', 1, true) then
+        if string.find(item, '"hash":"' .. call_hash .. '"', 1, true)
+           or string.find(item, '"hash": "' .. call_hash .. '"', 1, true) then
             count = count + 1
         end
     end
@@ -288,11 +289,13 @@ class StateManager:
             limit_key = f"{budget_key}:limit"
 
             now_ts = str(int(asyncio.get_event_loop().time()))
+            # Compact separators (no spaces) so the Lua substring match below is
+            # deterministic. get_repeat_count uses json.loads and is unaffected.
             call_record = json.dumps({
                 "tool": tool_name,
                 "hash": call_hash,
                 "timestamp": now_ts,
-            })
+            }, separators=(",", ":"))
 
             result = await self.redis.eval(
                 self._EVAL_LUA,
