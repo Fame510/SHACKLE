@@ -3,16 +3,87 @@
 SHACKLE Audit Logger - Postgres append-only logs with Ed25519 signatures
 """
 
+import base64
 import json
 import logging
+import os
 from datetime import datetime
+from pathlib import Path
 from typing import Dict, Optional
 
 import asyncpg
-from nacl.signing import SigningKey
+from nacl.signing import SigningKey, VerifyKey
 from nacl.encoding import HexEncoder
 
 logger = logging.getLogger(__name__)
+
+
+def _decode_key_material(raw: str) -> bytes:
+    """Decode a 32-byte Ed25519 seed from hex or base64 text."""
+    raw = raw.strip()
+    # Try hex first (64 hex chars), then base64.
+    try:
+        material = bytes.fromhex(raw)
+        if len(material) == 32:
+            return material
+    except ValueError:
+        pass
+    try:
+        material = base64.b64decode(raw, validate=True)
+        if len(material) == 32:
+            return material
+    except Exception:
+        pass
+    raise ValueError(
+        "SHACKLE signing key must be a 32-byte Ed25519 seed encoded as hex (64 chars) "
+        "or standard base64."
+    )
+
+
+def load_signing_key() -> "tuple[SigningKey, bool]":
+    """
+    Load the Ed25519 signing key, in priority order:
+      1. SHACKLE_SIGNING_KEY env var (hex or base64 32-byte seed)
+      2. SHACKLE_SIGNING_KEY_FILE path (file containing the encoded seed)
+      3. Generate a fresh ephemeral key (NOT durable across restarts)
+
+    Returns (SigningKey, is_persistent). When is_persistent is False the audit
+    trail will not verify after a process restart, so a loud warning is emitted.
+
+    Production note: inject SHACKLE_SIGNING_KEY from your secrets manager
+    (AWS Secrets Manager, GCP Secret Manager, Vault, etc.). Those systems expose
+    the secret as an environment variable or mounted file, both of which are read
+    here without any code change.
+    """
+    env_key = os.getenv("SHACKLE_SIGNING_KEY")
+    if env_key:
+        seed = _decode_key_material(env_key)
+        logger.info("Loaded audit signing key from SHACKLE_SIGNING_KEY.")
+        return SigningKey(seed), True
+
+    key_file = os.getenv("SHACKLE_SIGNING_KEY_FILE")
+    if key_file:
+        path = Path(key_file)
+        if path.is_file():
+            seed = _decode_key_material(path.read_text())
+            logger.info("Loaded audit signing key from SHACKLE_SIGNING_KEY_FILE=%s", key_file)
+            return SigningKey(seed), True
+        logger.error(
+            "SHACKLE_SIGNING_KEY_FILE=%s does not exist; falling back to an ephemeral key.",
+            key_file,
+        )
+
+    logger.warning(
+        "No SHACKLE_SIGNING_KEY or SHACKLE_SIGNING_KEY_FILE set. Generating an EPHEMERAL "
+        "audit signing key: records signed by this process will NOT verify after a restart. "
+        "Set SHACKLE_SIGNING_KEY (from a secrets manager) for durable, verifiable audit logs."
+    )
+    return SigningKey.generate(), False
+
+
+def _key_id_for(verify_key: VerifyKey) -> str:
+    """Stable short identifier for a public key (first 8 bytes, hex)."""
+    return verify_key.encode(encoder=HexEncoder).decode()[:16]
 
 
 class AuditLogger:
@@ -21,16 +92,38 @@ class AuditLogger:
     def __init__(self, postgres_url: str, signing_key: Optional[bytes] = None):
         self.postgres_url = postgres_url
         self.pool: Optional[asyncpg.Pool] = None
-        
-        # Initialize or load signing key
+
+        # Initialize or load signing key.
+        # Explicit signing_key arg wins (used by tests); otherwise load from
+        # env/file/ephemeral via load_signing_key().
         if signing_key:
             self.signing_key = SigningKey(signing_key)
+            self.key_is_persistent = True
         else:
-            # Generate new key (in production, load from secure storage)
-            self.signing_key = SigningKey.generate()
-        
+            self.signing_key, self.key_is_persistent = load_signing_key()
+
         self.verify_key = self.signing_key.verify_key
-        logger.info(f"Audit signing key: {self.verify_key.encode(encoder=HexEncoder).decode()}")
+        self.key_id = _key_id_for(self.verify_key)
+
+        # Map of key_id -> VerifyKey so records signed by prior keys can still be
+        # verified as long as their public keys are known. Seed with the active
+        # key plus any SHACKLE_KNOWN_VERIFY_KEYS (comma-separated hex/base64
+        # public keys).
+        self.known_verify_keys: Dict[str, VerifyKey] = {self.key_id: self.verify_key}
+        extra = os.getenv("SHACKLE_KNOWN_VERIFY_KEYS", "")
+        for token in [t for t in extra.split(",") if t.strip()]:
+            try:
+                vk = VerifyKey(_decode_key_material(token))
+                self.known_verify_keys[_key_id_for(vk)] = vk
+            except Exception as e:
+                logger.error("Ignoring invalid SHACKLE_KNOWN_VERIFY_KEYS entry: %s", e)
+
+        logger.info(
+            "Audit signing key id=%s persistent=%s pub=%s",
+            self.key_id,
+            self.key_is_persistent,
+            self.verify_key.encode(encoder=HexEncoder).decode(),
+        )
     
     async def connect(self):
         """Connect to Postgres and initialize schema"""
@@ -58,13 +151,18 @@ class AuditLogger:
                         cost DECIMAL(10, 6),
                         execution_time_ms DECIMAL(10, 2),
                         signature TEXT NOT NULL,
+                        key_id VARCHAR(32),
                         metadata JSONB
                     );
-                    
+
+                    -- Migration for tables created before key_id existed.
+                    ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS key_id VARCHAR(32);
+
                     CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON audit_log(timestamp DESC);
                     CREATE INDEX IF NOT EXISTS idx_audit_session ON audit_log(session_id);
                     CREATE INDEX IF NOT EXISTS idx_audit_tool ON audit_log(tool_name);
                     CREATE INDEX IF NOT EXISTS idx_audit_event_type ON audit_log(event_type);
+                    CREATE INDEX IF NOT EXISTS idx_audit_key_id ON audit_log(key_id);
                 """)
             
             logger.info("Connected to Postgres and initialized schema")
@@ -123,10 +221,10 @@ class AuditLogger:
                 await conn.execute("""
                     INSERT INTO audit_log (
                         timestamp, event_type, session_id, tool_name,
-                        decision, reason, signature, metadata
-                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                        decision, reason, signature, key_id, metadata
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
                 """, timestamp, "decision", session_id, tool_name,
-                    decision, reason, signature, json.dumps(metadata or {}))
+                    decision, reason, signature, self.key_id, json.dumps(metadata or {}))
             
             logger.info(f"Logged decision: {session_id} | {tool_name} | {decision}")
             
@@ -168,11 +266,12 @@ class AuditLogger:
                     INSERT INTO audit_log (
                         timestamp, event_type, session_id, tool_name,
                         parameters, result, error, cost, execution_time_ms,
-                        signature, metadata
-                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                        signature, key_id, metadata
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
                 """, timestamp, "execution", session_id, tool_name,
                     json.dumps(parameters), json.dumps(result) if result else None,
-                    error, cost, execution_time_ms, signature, json.dumps(metadata or {}))
+                    error, cost, execution_time_ms, signature, self.key_id,
+                    json.dumps(metadata or {}))
             
             logger.info(f"Logged execution: {session_id} | {tool_name} | cost={cost}")
             
@@ -186,7 +285,7 @@ class AuditLogger:
                 row = await conn.fetchrow("""
                     SELECT timestamp, event_type, session_id, tool_name,
                            decision, reason, parameters, result, error,
-                           cost, execution_time_ms, signature, metadata
+                           cost, execution_time_ms, signature, key_id, metadata
                     FROM audit_log WHERE id = $1
                 """, log_id)
             
@@ -223,9 +322,26 @@ class AuditLogger:
             record_bytes = record_json.encode('utf-8')
             
             signature_bytes = bytes.fromhex(row["signature"])
-            
+
+            # Select the verify key that signed this row. Rows written by prior
+            # (persistent) keys still verify as long as their public key is known
+            # via SHACKLE_KNOWN_VERIFY_KEYS. Legacy rows with no key_id fall back
+            # to the active key (best effort).
+            row_key_id = row["key_id"]
+            if row_key_id:
+                verify_key = self.known_verify_keys.get(row_key_id)
+                if verify_key is None:
+                    logger.warning(
+                        "No known verify key for key_id=%s (record id=%s); "
+                        "cannot verify. Add its public key to SHACKLE_KNOWN_VERIFY_KEYS.",
+                        row_key_id, log_id,
+                    )
+                    return False
+            else:
+                verify_key = self.verify_key
+
             try:
-                self.verify_key.verify(record_bytes, signature_bytes)
+                verify_key.verify(record_bytes, signature_bytes)
                 return True
             except Exception:
                 return False
