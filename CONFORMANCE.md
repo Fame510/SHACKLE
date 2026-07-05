@@ -43,6 +43,13 @@ carries a canonical SHA-256 hash over its `call.params`; the file now holds 14 v
 A runtime is **SHACKLE-conformant** iff it passes the published fixture set at
 `Fame510/SHACKLE/fixtures`. Conformance is provable by **reproduction, not assertion**.
 
+**Layer scope (honest):** the conformance-verified layer is this specification plus
+`fixtures/conformance.json` (14 vectors) and the reference `shackle/conformance.py::decide()`.
+The shipped `shackle/core.py` `@Guard` runtime is a *reference integration*: it uses the same
+canonical-hashing discipline as this spec, but does not yet call `decide()` directly. A literal
+`core.py → decide()` wiring is on the roadmap; until then, "SP/1.0-conformant" refers to the
+spec + fixtures + reference implementation.
+
 > Independent verification of record: @nutstrut reproduced all fixture hashes independently
 > (2026-07-05) and published a runnable composition against the published set.
 
