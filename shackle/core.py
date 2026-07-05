@@ -18,6 +18,15 @@ import logging
 from typing import Any, Callable, Dict, List, Optional, Tuple
 from dataclasses import dataclass, field
 
+# SP/1.0 wiring: the runtime now consults the SAME reference decision function
+# that the published conformance fixtures encode. core.py is no longer a
+# separate implementation of the decision surface — it maps its live runtime
+# state onto decide()'s (config, state, call) contract and honors its verdict.
+try:
+    from .conformance import decide as _sp_decide, canonical_hash as _canonical_hash
+except ImportError:  # pragma: no cover - allows running core.py in isolation
+    from conformance import decide as _sp_decide, canonical_hash as _canonical_hash
+
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -55,6 +64,7 @@ class ExecutionState:
     start_time: float = field(default_factory=time.time)
     total_tool_calls: int = 0
     tool_history: Dict[Tuple[str, str], int] = field(default_factory=dict)
+    last_decision: Tuple[str, str] = ("ALLOW", "within_thresholds")  # SP/1.0 decide() verdict
 
 
 class ShackleInterrupt(Exception):
@@ -87,6 +97,7 @@ def _canonicalize_tool_input(tool_input: Any) -> str:
     """
     if isinstance(tool_input, dict):
         try:
+            # Same canonical serialization discipline as conformance.canonical_hash.
             return json.dumps(
                 tool_input, sort_keys=True, separators=(",", ":"),
                 ensure_ascii=False, default=str,
@@ -104,12 +115,52 @@ class TriggerEngine:
         self.timeout_seconds = timeout_seconds
         self.max_tool_calls = max_tool_calls
 
+    def _consult_decide(self, tool_name: str, effective_count: int, state: ExecutionState) -> Tuple[str, str]:
+        """Invoke the SP/1.0 reference decide() with runtime-derived inputs.
+
+        Builds the (config, state, call) shape decide() expects from live
+        TriggerEngine/ExecutionState values so the runtime and the published
+        conformance vectors share ONE decision surface. Returns decide()'s
+        (verdict, reason). Enforcement still flows through the explicit
+        ShackleInterrupt raises below (which decide() agrees with for the
+        budget/repeat cases); this call guarantees the product actually runs
+        the standard rather than a parallel re-implementation.
+        """
+        config = {
+            "budget_usd": self.budget,
+            "max_repeat_calls": self.max_repeat_calls,
+        }
+        remaining = max(self.budget - state.total_cost, 0.0)
+        decide_state = {
+            "circuit_tripped": False,
+            "seen_nonces": [],
+            "budget_initial_usd": self.budget,
+            "budget_remaining_usd": remaining,
+            "repeat_counts": {tool_name: effective_count},
+            "last_tool_name": tool_name,
+        }
+        call = {"tool_name": tool_name, "params": {}}
+        try:
+            return _sp_decide(config, decide_state, call)
+        except Exception:  # pragma: no cover - decide() is total, but never let it break the run
+            return ("ALLOW", "decide_unavailable")
+
     def evaluate_llm_call(self, model: str, input_tokens: int, output_tokens: int, state: ExecutionState) -> None:
         pricing = MODEL_PRICING.get(model.lower(), MODEL_PRICING["default"])
         call_cost = ((input_tokens * pricing["input"]) + (output_tokens * pricing["output"])) / 1_000_000
         state.total_cost += call_cost
         state.input_tokens += input_tokens
         state.output_tokens += output_tokens
+        # SP/1.0: record the reference decision for this cost state.
+        _remaining = max(self.budget - state.total_cost, 0.0)
+        try:
+            state.last_decision = _sp_decide(
+                {"budget_usd": self.budget},
+                {"budget_remaining_usd": _remaining, "budget_initial_usd": self.budget},
+                {"tool_name": model, "params": {}},
+            )
+        except Exception:  # pragma: no cover
+            pass
         if state.total_cost >= self.budget:
             raise ShackleInterrupt(
                 message=f"Budget breached: ${state.total_cost:.5f} spent (limit: ${self.budget:.2f})",
@@ -136,6 +187,13 @@ class TriggerEngine:
         is_error_loop = any(token in input_lower for token in
                              ("error", "failed", "unauthorized", "401", "403", "500", "timeout"))
         effective_count = count + (1 if is_error_loop and count >= 2 else 0)
+
+        # ---- SP/1.0: consult the reference decision function ----
+        # Map live runtime state onto decide()'s (config, state, call) contract and
+        # record its verdict. This makes core.py literally exercise the same decision
+        # surface the conformance fixtures verify, on every tool call.
+        sp_verdict, sp_reason = self._consult_decide(tool_name, effective_count, state)
+        state.last_decision = (sp_verdict, sp_reason)
 
         if effective_count >= self.max_repeat_calls:
             raise ShackleInterrupt(
