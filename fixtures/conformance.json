@@ -1,6 +1,6 @@
 {
   "spec": "SHACKLE SP/1.0",
-  "description": "Language-neutral conformance fixtures for the SHACKLE decision core (decide()). Each fixture is a canonical preimage + expected typed output. Any implementation (SHACKLE, a CrewAI adapter, or a receipts layer) can run these vectors and diff results. Canonical hash = SHA-256 of json.dumps(params, sort_keys=True, separators=(',',':')).",
+  "description": "Language-neutral conformance fixtures for the SHACKLE decision core (decide()). Each fixture is a canonical preimage + expected typed output. Any implementation (SHACKLE, a CrewAI adapter, or a receipts layer) can run these vectors and diff results. Canonical hash = SHA-256 of json.dumps(params, sort_keys=True, separators=(',',':')). v1.1 adds the five HITL transition fixtures (approve/reject/modify/defer-escalate/duplicate-resume) defined in CONFORMANCE.md §3; core invariant: history-visible is not runtime-executable.",
   "canonicalization": {
     "hash": "sha256",
     "serialization": "json, keys sorted ascending, separators (',',':'), UTF-8"
@@ -225,6 +225,192 @@
       "expected_verdict": "HITL",
       "expected_reason": "fail_closed:opaque_context",
       "conformance_note": "When context cannot be evaluated deterministically, implementations MUST fail closed (HITL or DENY), never silent ALLOW."
+    },
+    {
+      "call": {
+        "nonce": 20,
+        "params": {
+          "amount_usd": 5,
+          "target": "checkout",
+          "tool": "purchase",
+          "transition": "approve"
+        },
+        "tool_name": "purchase"
+      },
+      "canonical_hash": "3e00466d0345248d65bf57c4f93c13935c9541ce4018f6545348cb83c11389c2",
+      "config": {
+        "budget_usd": 10,
+        "hitl_budget_threshold": 0.5,
+        "hitl_mode": "on_threshold"
+      },
+      "conformance_note": "APPROVE: original call released for execution exactly once, bound to original_args_digest. Re-dispatch of original_nonce after execution is no-effect. A differing args digest at execution MUST fail closed.",
+      "expected_reason": "hitl_transition:approve",
+      "expected_verdict": "ALLOW",
+      "name": "hitl_transition_approve",
+      "state": {
+        "budget_initial_usd": 10,
+        "budget_remaining_usd": 10,
+        "circuit_tripped": false,
+        "pending_transition": {
+          "decision": "approve",
+          "original_args_digest": "3e00466d0345248d65bf57c4f93c13935c9541ce4018f6545348cb83c11389c2",
+          "original_nonce": 20,
+          "terminal_status": "consumed_on_execute"
+        },
+        "seen_nonces": []
+      }
+    },
+    {
+      "call": {
+        "nonce": 21,
+        "params": {
+          "amount_usd": 5,
+          "target": "checkout",
+          "tool": "purchase",
+          "transition": "reject"
+        },
+        "tool_name": "purchase"
+      },
+      "canonical_hash": "b31ec640402611b51dd7be17ad45ee73c6b0161599e5fb05484a4846df8286d3",
+      "config": {
+        "budget_usd": 10,
+        "hitl_budget_threshold": 0.5,
+        "hitl_mode": "on_threshold"
+      },
+      "conformance_note": "REJECT: original call is terminal_status=rejected and non-dispatchable. MUST NOT be re-emitted to the executable queue. Later dispatch of original_nonce=21 is no-effect.",
+      "expected_reason": "hitl_transition:reject",
+      "expected_verdict": "DENY",
+      "name": "hitl_transition_reject",
+      "state": {
+        "budget_initial_usd": 10,
+        "budget_remaining_usd": 10,
+        "circuit_tripped": false,
+        "pending_transition": {
+          "decision": "reject",
+          "original_args_digest": "b31ec640402611b51dd7be17ad45ee73c6b0161599e5fb05484a4846df8286d3",
+          "original_nonce": 21,
+          "terminal_status": "rejected"
+        },
+        "seen_nonces": []
+      }
+    },
+    {
+      "call": {
+        "nonce": 23,
+        "params": {
+          "amount_usd": 2,
+          "target": "checkout",
+          "tool": "purchase",
+          "transition": "modify_successor"
+        },
+        "tool_name": "purchase"
+      },
+      "canonical_hash": "bd95109e583e9966a28752d2f2cb256fa0d2e04dc0d82c354e3db75d4ec14986",
+      "config": {
+        "budget_usd": 10,
+        "hitl_budget_threshold": 0.5,
+        "hitl_mode": "on_threshold"
+      },
+      "conformance_note": "MODIFY: original (nonce=22) is terminal_status=superseded and non-dispatchable; ONLY the edited successor (nonce=23, this preimage) is executable, exactly once. Dispatching the superseded original is no-effect.",
+      "expected_reason": "hitl_transition:modify_successor",
+      "expected_verdict": "ALLOW",
+      "name": "hitl_transition_modify",
+      "state": {
+        "budget_initial_usd": 10,
+        "budget_remaining_usd": 10,
+        "circuit_tripped": false,
+        "pending_transition": {
+          "decision": "modify",
+          "original_args_digest": "9e378f27fcd777f032ff3c95d86c7edab6d45f87ea2759b34ce4db5cccfd98d4",
+          "original_nonce": 22,
+          "successor_args_digest": "bd95109e583e9966a28752d2f2cb256fa0d2e04dc0d82c354e3db75d4ec14986",
+          "successor_nonce": 23,
+          "terminal_status": "superseded"
+        },
+        "seen_nonces": []
+      }
+    },
+    {
+      "call": {
+        "nonce": 24,
+        "params": {
+          "amount_usd": 5,
+          "target": "checkout",
+          "tool": "purchase",
+          "transition": "defer"
+        },
+        "tool_name": "purchase"
+      },
+      "canonical_hash": "547d00972a718d77a3e5883c4264cec9ab3c146b28c6f0be255e0014beb52820",
+      "config": {
+        "budget_usd": 10,
+        "hitl_budget_threshold": 0.5,
+        "hitl_mode": "on_threshold"
+      },
+      "conformance_note": "DEFER/ESCALATE: original call stays pending, no execution. Neither released nor terminated; awaiting human/authority. Verdict stays HITL (fail-closed); call MUST NOT execute while pending.",
+      "expected_reason": "hitl_transition:defer_escalate",
+      "expected_verdict": "HITL",
+      "name": "hitl_transition_defer_escalate",
+      "state": {
+        "budget_initial_usd": 10,
+        "budget_remaining_usd": 10,
+        "circuit_tripped": false,
+        "pending_transition": {
+          "decision": "defer",
+          "original_args_digest": "547d00972a718d77a3e5883c4264cec9ab3c146b28c6f0be255e0014beb52820",
+          "original_nonce": 24,
+          "terminal_status": "pending"
+        },
+        "seen_nonces": []
+      }
+    },
+    {
+      "call": {
+        "nonce": 25,
+        "params": {
+          "amount_usd": 5,
+          "target": "checkout",
+          "tool": "purchase",
+          "transition": "duplicate_resume"
+        },
+        "tool_name": "purchase"
+      },
+      "canonical_hash": "6a4096d6f5712920006397b9aec5606207e0c5f98d687d52996877c7b4bf770c",
+      "config": {
+        "budget_usd": 10,
+        "hitl_budget_threshold": 0.5,
+        "hitl_mode": "on_threshold"
+      },
+      "conformance_note": "DUPLICATE RESUME: resume/re-dispatch against a call in a terminal state (rejected or superseded) MUST be no-effect and fail closed (DENY). History-visible is not runtime-executable. nonce=25 already in seen_nonces reinforces replay rejection.",
+      "expected_reason": "hitl_transition:duplicate_resume_no_effect",
+      "expected_verdict": "DENY",
+      "name": "hitl_transition_duplicate_resume",
+      "state": {
+        "budget_initial_usd": 10,
+        "budget_remaining_usd": 10,
+        "circuit_tripped": false,
+        "pending_transition": {
+          "decision": "reject",
+          "original_args_digest": "6a4096d6f5712920006397b9aec5606207e0c5f98d687d52996877c7b4bf770c",
+          "original_nonce": 25,
+          "resume_attempt": true,
+          "terminal_status": "rejected"
+        },
+        "seen_nonces": [
+          25
+        ]
+      }
     }
-  ]
+  ],
+  "transition_contract": {
+    "invariant": "history_visible != runtime_executable",
+    "cases": [
+      "approve",
+      "reject",
+      "modify",
+      "defer_escalate",
+      "duplicate_resume"
+    ],
+    "spec_ref": "CONFORMANCE.md#3-hitl-transition-contract-five-canonical-cases"
+  }
 }
