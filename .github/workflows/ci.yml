@@ -42,6 +42,44 @@ jobs:
         run: |
           PYTHONPATH=. python tests/test_conformance.py
 
+  daemon-tests:
+    name: V2 daemon (atomic state + fallback)
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      REDIS_URL: redis://localhost:6379/0
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install v2 daemon dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r v2/daemon/requirements.txt
+      - name: Run atomic state tests (real Redis)
+        working-directory: v2/daemon
+        run: |
+          python -m pytest test_state_atomic.py -v --tb=short
+      - name: Run daemon fallback test (no daemon required, informational)
+        working-directory: v2/daemon
+        # Only the fallback path is daemon-independent; full integration tests in
+        # test_daemon.py require a running daemon + Postgres and are run via
+        # docker-compose, not CI. Kept non-blocking so the atomic-state proof
+        # above is the gating check.
+        continue-on-error: true
+        run: |
+          python -m pytest test_daemon.py -v --tb=short -k fallback
+
   secret-scan:
     name: Secret scan
     runs-on: ubuntu-latest
