@@ -1143,6 +1143,47 @@
 </section>
 
 <!-- âââââââââââââââââââââââ PRICING âââââââââââââââââââââââ -->
+<a id="integrations"></a>
+<section class="section">
+  <span class="section-label">// Integrations</span>
+  <h2>Drop Into Your Stack.</h2>
+  <p style="color:var(--gray);max-width:720px;">
+    SHACKLE now ships first-class governance for the two biggest chokepoints in the
+    agent ecosystem &mdash; <strong>LiteLLM</strong> (the universal adapter under CrewAI,
+    AutoGen, LangGraph and thousands of custom agents) and <strong>Microsoft AutoGen</strong>.
+    One integration governs the whole supply chain, and every decision traces to the
+    hash-pinned SP/1.0 conformance fixtures.
+  </p>
+  <div class="feature-grid" style="margin-top:28px;">
+    <div class="feature-item">
+      <h4>LiteLLM guardrail</h4>
+      <p style="color:var(--gray);font-size:14px;">
+        <code>ShackleGuardrail</code> enforces the pure SP/1.0 reference <code>decide()</code>;
+        <code>ShackleEngineGuardrail</code> drives the full stateful circuit breaker
+        (budget / repeat / timeout). Sync <code>check()/record()</code> for the SDK, plus
+        async pre/post hooks for the LiteLLM proxy. <code>litellm</code> is optional.
+      </p>
+    </div>
+    <div class="feature-item">
+      <h4>AutoGen wrapper</h4>
+      <p style="color:var(--gray);font-size:14px;">
+        <code>@wrap_tool</code> governs any AutoGen tool through the same engine, with
+        canonical input dedup so dict key ordering can&rsquo;t evade loop detection.
+        <code>create_shackle_agent()</code> spins up a governed AssistantAgent.
+      </p>
+    </div>
+    <div class="feature-item">
+      <h4>Same contract everywhere</h4>
+      <p style="color:var(--gray);font-size:14px;">
+        Every path enforces <code>Valid(&tau;) &hArr; Required(&tau;) &sube; Supported(&tau;)</code>
+        and the ALLOW / DENY / HITL decision surface. See
+        <a href="https://github.com/Fame510/SHACKLE/blob/master/INTEGRATIONS.md">INTEGRATIONS.md</a>
+        for proxy config and usage.
+      </p>
+    </div>
+  </div>
+</section>
+
 <a id="pricing"></a>
 <section class="section">
   <span class="section-label">// Pricing</span>
