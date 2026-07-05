@@ -225,6 +225,95 @@ class StateManager:
             logger.error(f"Error getting repeat count: {e}", exc_info=True)
             return 0
     
+    # Lua script: atomic budget + repeat-count check + conditional record.
+    # KEYS[1] = budget spent key, KEYS[2] = budget limit key, KEYS[3] = call history list
+    # ARGV[1] = estimated_cost, ARGV[2] = call_hash, ARGV[3] = tool_name,
+    # ARGV[4] = max_repeat (int), ARGV[5] = default_limit, ARGV[6] = now_ts,
+    # ARGV[7] = history_ttl_seconds, ARGV[8] = call_record_json
+    # Returns: {decision, repeat_count} where decision is ALLOW|DENY|HITL
+    _EVAL_LUA = """
+    local spent = tonumber(redis.call('GET', KEYS[1]) or '0')
+    local limit = tonumber(redis.call('GET', KEYS[2]) or ARGV[5])
+    local est = tonumber(ARGV[1])
+    if (spent + est) > limit then
+        return {'DENY', 0}
+    end
+
+    local call_hash = ARGV[2]
+    local max_repeat = tonumber(ARGV[4])
+    local history = redis.call('LRANGE', KEYS[3], 0, -1)
+    local count = 0
+    for i, item in ipairs(history) do
+        -- match on the stored hash field without full JSON decode
+        if string.find(item, '"hash":"' .. call_hash .. '"', 1, true) then
+            count = count + 1
+        end
+    end
+
+    -- Repeat detection mirrors the non-atomic path: a prior identical call must
+    -- already exist (count > 0) and the total must exceed max_repeat.
+    if count > 0 and count > max_repeat then
+        return {'HITL', count}
+    end
+
+    -- ALLOW: record this call atomically so concurrent requests can't race.
+    redis.call('LPUSH', KEYS[3], ARGV[8])
+    redis.call('LTRIM', KEYS[3], 0, 99)
+    redis.call('EXPIRE', KEYS[3], tonumber(ARGV[7]))
+    return {'ALLOW', count}
+    """
+
+    async def evaluate_and_record(
+        self,
+        session_id: str,
+        tool_name: str,
+        parameters: Dict,
+        estimated_cost: float,
+        max_repeat: int = 3,
+        default_limit: float = 10.0,
+    ) -> Dict:
+        """
+        Atomically evaluate budget + repeat-call policy and, when ALLOWed, record
+        the call. This collapses the previous check_budget -> check_repeat_call ->
+        get_repeat_count -> record_call sequence (which had a TOCTOU race under
+        concurrency) into a single Redis round-trip via a Lua script.
+
+        Returns {"decision": "ALLOW"|"DENY"|"HITL", "repeat_count": int}.
+        On error, fails open with ALLOW to preserve prior behavior.
+        """
+        try:
+            call_hash = self._call_hash(tool_name, parameters)
+            history_key = self._call_history_key(session_id)
+            budget_key = self._budget_key(session_id)
+            limit_key = f"{budget_key}:limit"
+
+            now_ts = str(int(asyncio.get_event_loop().time()))
+            call_record = json.dumps({
+                "tool": tool_name,
+                "hash": call_hash,
+                "timestamp": now_ts,
+            })
+
+            result = await self.redis.eval(
+                self._EVAL_LUA,
+                3,
+                budget_key, limit_key, history_key,
+                str(estimated_cost), call_hash, tool_name,
+                str(int(max_repeat)), str(default_limit), now_ts,
+                "3600", call_record,
+            )
+
+            decision = result[0]
+            if isinstance(decision, bytes):
+                decision = decision.decode()
+            repeat_count = int(result[1])
+            return {"decision": decision, "repeat_count": repeat_count}
+
+        except Exception as e:
+            logger.error(f"Error in evaluate_and_record: {e}", exc_info=True)
+            # Fail open, consistent with check_budget's fail-open behavior.
+            return {"decision": "ALLOW", "repeat_count": 0}
+
     async def clear_session(self, session_id: str):
         """Clear all state for a session"""
         try:
