@@ -32,8 +32,12 @@ The three layers are independent: **control decision** / **conformance result** 
 | **defer / escalate** | original call stays pending; no execution |
 | **duplicate resume** (vs terminal rejected/superseded) | no-effect / fail-closed |
 
-Core invariant: **history-visible ≠ runtime-executable.** Each case is expressed as a
-hash-verifiable fixture under `fixtures/`.
+Core invariant: **history-visible ≠ runtime-executable.** Each of the five cases is expressed
+as a hash-verifiable fixture under `fixtures/conformance.json` — added 2026-07-05 as
+`hitl_transition_approve`, `hitl_transition_reject`, `hitl_transition_modify`,
+`hitl_transition_defer_escalate`, and `hitl_transition_duplicate_resume`. Every fixture
+carries a canonical SHA-256 hash over its `call.params`; the file now holds 14 vectors total
+(9 decision-core + 5 transition).
 
 ## 4. Claiming conformance
 A runtime is **SHACKLE-conformant** iff it passes the published fixture set at
