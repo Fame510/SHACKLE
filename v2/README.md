@@ -1,6 +1,6 @@
 # SHACKLE V2: Enterprise Runtime Sovereignty Layer
 
-**Status:** Production-ready optional upgrade for V1 users
+**Status:** Experimental — not production-ready. The core decision logic (`shackle/`) is spec-conformant and CI-tested; the V2 daemon is a working prototype with known pre-hardening gaps (see **Known Limitations** below).
 
 ---
 
@@ -16,10 +16,21 @@ SHACKLE V1 is a **single-process decorator** that works great for local developm
 
 ### V2 (Optional Upgrade)
 - ✅ **Distributed state** (budget shared across serverless functions, Lambda, K8s pods)
-- ✅ **Postgres audit logs** (cryptographically signed with Ed25519)
+- ✅ **Postgres audit logs** (cryptographically signed with Ed25519) — *signing key is loaded from `SHACKLE_SIGNING_KEY` (env) or a key file; if neither is set, an ephemeral key is generated and the audit trail will not verify across restarts. Load from a secrets manager in production.*
 - ✅ **Remote HITL** (control headless agents from mobile/web)
 - ✅ **SOC2 compliance pack** (for regulated industries)
 - ✅ **Commercial licensing** (for closed-source products)
+
+---
+
+## Known Limitations (pre-production)
+
+The V2 daemon is a functional prototype. Before relying on it in production, be aware:
+
+- **Audit signing key persistence.** The Ed25519 signing key is loaded from `SHACKLE_SIGNING_KEY` (env) or `SHACKLE_SIGNING_KEY_FILE`. If neither is provided, a new key is generated per process and previously signed records will not verify after a restart. Use a secrets manager in production.
+- **Performance numbers are estimates.** Daemon round-trip latency and throughput figures in `benchmarks/` are back-of-envelope estimates, not load-tested measurements. Throughput at production scale is unverified.
+- **Concurrent enforcement.** `/pre_exec` budget and repeat-call checks are enforced atomically via a single Redis operation; treat cross-process budgets as strongly-consistent only when all clients share one Redis.
+- **Daemon integration tests** require live Redis + Postgres services and now run in CI (see `.github/workflows/ci.yml`).
 
 ---
 
