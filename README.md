@@ -4,7 +4,7 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 
 > **The 1-Line Runtime Circuit Breaker — and the SP/1.0 Conformance Standard — for Autonomous AI Agents.**
-> Stop runaway token loops, unhandled tool cascades, and accidental $4,000 API bills before they happen — and prove your runtime enforces the mediation contract with verifiable conformance fixtures.
+> Stop runaway token loops, unhandled tool cascades, and budget overruns and halt the run before the *next* call — and prove your runtime enforces the mediation contract with verifiable conformance fixtures. (Cost is read from usage after each call, so SHACKLE stops the loop, not the single call that crossed the line; see the AGPL best-effort disclaimer below.)
 
 ---
 
@@ -20,6 +20,8 @@ SHACKLE is not only a runtime circuit breaker — it is the **authored, verifiab
 - **Core invariant:** *history-visible ≠ runtime-executable* — a record that an action happened is not proof the transition was supported
 
 A runtime is **SHACKLE-conformant** iff it passes the published fixture set — provable by **reproduction, not assertion**. See **[CONFORMANCE.md](CONFORMANCE.md)** for the full specification and how to claim conformance. The fixture hashes have been independently reproduced by third parties.
+
+> **Which layer is which (honest scope):** [`shackle/conformance.py`](shackle/conformance.py) + [`fixtures/conformance.json`](fixtures/conformance.json) are the **conformance-verified layer** — the authored spec and its 14 hash-verifiable vectors, with a reference `decide()`. [`shackle/core.py`](shackle/core.py) is the **reference runtime integration** (the `@Guard` decorator): it uses the *same* canonical-hashing discipline as the spec, but does not yet call `decide()` directly. So "SP/1.0-conformant" refers to the spec + fixtures + reference implementation — a literal `core.py → decide()` wiring is on the roadmap.
 
 **Authorship & provenance:** SHACKLE, the `Required ⊆ Supported` conformance model, the `decide()` surface, and the HITL transition contract are authored by **Dante Bullock ([@Fame510](https://github.com/Fame510))**, sole author. First published 2026-06-17.
 
@@ -165,7 +167,7 @@ Select action (R/S/A):
 | Framework | Support | Notes |
 |---|---|---|
 | **CrewAI** | Ã¢ÂÂ Full | litellm hook + BaseTool hook + Agent.execute_task (experimental) |
-| **LangChain / LangGraph** | Ã¢ÂÂ Full | litellm + BaseTool hooks cover all paths |
+| **LangChain / LangGraph** | Sync + async | litellm (completion/acompletion) + BaseTool (run/arun) hooks cover sync and async paths |
 | **AutoGen** | Ã¢ÂÂ Full | litellm interception catches all LLM calls |
 | **Smolagents** | Ã°ÂÂ§Âª Experimental | Manager Agent reasoning loop detection active |
 
