@@ -100,6 +100,13 @@ class SessionState:
     last_tool_name: str = ""
     last_tool_params_hash: bytes = b""
     seen_nonces: Set[int] = field(default_factory=set)
+    # Pending human-in-the-loop transition resolution (SP/1.0 v1.1).
+    # Populated by the daemon when a prior call is awaiting or has received a
+    # human decision. decide() resolves it in Layer 1.5 (below) BEFORE the
+    # nonce guard, so a resume against a terminal state is caught as no-effect
+    # rather than a generic duplicate nonce. Backs fixtures/conformance.json ::
+    # hitl_transition_{approve,reject,modify,defer_escalate,duplicate_resume}.
+    pending_transition: Optional[dict] = None
 
 
 @dataclass
@@ -227,6 +234,35 @@ def decide(
     if state.circuit_tripped:
         return Decision(Verdict.DENY, DenyReason.CIRCUIT_OPEN,
                         f"Circuit open: {state.circuit_trip_reason}")
+
+    # Layer 1.5: Pending HITL transition resolution (SP/1.0 v1.1).
+    # A human decision on a previously-held call is terminal and MUST be
+    # resolved before the generic nonce guard. Ordering matters: a resume
+    # against a terminal (rejected/superseded) call carries a nonce already in
+    # seen_nonces; without this layer it would be reported as duplicate_nonce
+    # instead of the correct duplicate_resume_no_effect. History-visible is
+    # NOT runtime-executable.
+    pt = state.pending_transition
+    if pt:
+        decision = str(pt.get("decision", "")).lower()
+        terminal = str(pt.get("terminal_status", "")).lower()
+        resume = pt.get("resume_attempt") is True
+        # Resume/re-dispatch against a terminal state is no-effect (fail closed).
+        if resume and terminal in ("rejected", "superseded"):
+            return Decision(Verdict.DENY, DenyReason.POLICY_VIOLATION,
+                            "[duplicate_resume_no_effect] resume against terminal state is no-effect")
+        if decision == "approve":
+            return Decision(Verdict.ALLOW,
+                            human_readable="[hitl_transition:approve] original released for execution once")
+        if decision == "reject":
+            return Decision(Verdict.DENY, DenyReason.POLICY_VIOLATION,
+                            "[hitl_transition:reject] terminal rejected, non-dispatchable")
+        if decision == "modify":
+            return Decision(Verdict.ALLOW,
+                            human_readable="[hitl_transition:modify_successor] edited successor executable once")
+        if decision in ("defer", "escalate"):
+            return Decision(Verdict.HITL,
+                            human_readable="[hitl_transition:defer_escalate] awaiting human/authority")
 
     # Layer 2: Nonce validation (anti-replay)
     if call.nonce in state.seen_nonces:
