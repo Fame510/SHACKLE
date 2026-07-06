@@ -80,15 +80,25 @@ def _reason_string(d: Decision) -> str:
     """Map a typed Decision to the fixture reason string form."""
     hr = (d.human_readable or "").lower()
     if d.verdict == Verdict.ALLOW:
+        if "[hitl_transition:approve]" in hr:
+            return "hitl_transition:approve"
+        if "[hitl_transition:modify_successor]" in hr:
+            return "hitl_transition:modify_successor"
         return "within_thresholds"
     if d.verdict == Verdict.DENY:
         if "[malformed_input]" in hr:
             return "policy_violation:malformed_input"
+        if "[duplicate_resume_no_effect]" in hr:
+            return "policy_violation:duplicate_resume_no_effect"
+        if "[hitl_transition:reject]" in hr:
+            return "hitl_transition:reject"
         if d.deny_reason == DenyReason.POLICY_VIOLATION:
             # duplicate nonce is the only other policy_violation path
             return "policy_violation:duplicate_nonce"
         return d.deny_reason.value  # budget_exhausted, max_repeat_exceeded, circuit_open, ...
     # HITL
+    if "[hitl_transition:defer_escalate]" in hr:
+        return "hitl_transition:defer_escalate"
     if "[opaque_context]" in hr:
         return "fail_closed:opaque_context"
     if "threshold" in hr:
