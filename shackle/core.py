@@ -1,5 +1,5 @@
 """
-SHACKLE — Runtime Circuit Breaker for Autonomous AI Agents.
+SHACKLE --- Runtime Circuit Breaker for Autonomous AI Agents.
 Copyright (C) 2026 Dante Bullock, Sovereign Logic
 
 Intercepts LLM calls and tool executions at the interpreter level via
@@ -20,23 +20,40 @@ from dataclasses import dataclass, field
 
 # SP/1.0 wiring: the runtime now consults the SAME reference decision function
 # that the published conformance fixtures encode. core.py is no longer a
-# separate implementation of the decision surface — it maps its live runtime
+# separate implementation of the decision surface --- it maps its live runtime
 # state onto decide()'s (config, state, call) contract and honors its verdict.
 try:
     from .conformance import decide as _sp_decide, canonical_hash as _canonical_hash
 except ImportError:  # pragma: no cover - allows running core.py in isolation
     from conformance import decide as _sp_decide, canonical_hash as _canonical_hash
 
-from rich.console import Console
-from rich.panel import Panel
-from rich.table import Table
+# Optional pretty-printing. rich is a CLI convenience, not a runtime requirement:
+# the library and daemon must import cleanly in minimal environments (a buyer's
+# first move is 'pip install shackle' + 'import shackle' in a bare venv). Fall back
+# to a stdlib shim so console.print()/Panel/Table call sites keep working.
+try:
+    from rich.console import Console
+    from rich.panel import Panel
+    from rich.table import Table
+    console = Console()
+except ImportError:  # pragma: no cover - exercised only without rich installed
+    class _PlainConsole:
+        def print(self, *args, **kwargs):
+            text = " ".join(str(a) for a in args)
+            print(text)
 
-console = Console()
+    def Panel(renderable, *args, **kwargs):  # noqa: N802 - mirror rich API
+        return renderable
+
+    def Table(*args, **kwargs):  # noqa: N802 - mirror rich API
+        return None
+
+    console = _PlainConsole()
 logger = logging.getLogger("shackle")
 
-# ──────────────────────────────────────────────
+# ------------------------------------------------------------------------------------------------------------------------------------------
 # 1. MODEL PRICING TABLE (per 1M tokens, USD)
-# ──────────────────────────────────────────────
+# ------------------------------------------------------------------------------------------------------------------------------------------
 MODEL_PRICING: Dict[str, Dict[str, float]] = {
     "gpt-4o": {"input": 2.50, "output": 10.00},
     "gpt-4o-2024-05-13": {"input": 2.50, "output": 10.00},
@@ -75,9 +92,9 @@ class ShackleInterrupt(Exception):
         self.details = details
 
 
-# ──────────────────────────────────────────────
+# ------------------------------------------------------------------------------------------------------------------------------------------
 # FIX #1: canonical dedup key for loop-of-death detection
-# ──────────────────────────────────────────────
+# ------------------------------------------------------------------------------------------------------------------------------------------
 def _canonicalize_tool_input(tool_input: Any) -> str:
     """Canonical string key for loop-of-death dedup.
 
@@ -228,9 +245,9 @@ def render_hitl_terminal(interrupt: ShackleInterrupt) -> str:
         console.print("Invalid choice. Enter R, S, or A.")
 
 
-# ──────────────────────────────────────────────
+# ------------------------------------------------------------------------------------------------------------------------------------------
 # FIX #2 (part A): async-safe HITL prompt
-# ──────────────────────────────────────────────
+# ------------------------------------------------------------------------------------------------------------------------------------------
 async def _render_hitl_terminal_async(interrupt: ShackleInterrupt) -> str:
     """Async-safe HITL prompt. Offloads the blocking input()/print() call to
     a worker thread via asyncio.to_thread so it does NOT block the event
@@ -292,9 +309,9 @@ def _extract_llm_usage(response: Any) -> Tuple[int, int]:
     return input_tok, output_tok
 
 
-# ──────────────────────────────────────────────
+# ------------------------------------------------------------------------------------------------------------------------------------------
 # FIX #2 (part B) + FIX #3: async patching, fully reentrant (no module globals)
-# ──────────────────────────────────────────────
+# ------------------------------------------------------------------------------------------------------------------------------------------
 # Each _patch_* function captures whatever function is CURRENTLY installed
 # (which, if another Guard scope is already active, is THAT Guard's patched
 # wrapper -- not the true original). This makes nested/overlapping Guard
