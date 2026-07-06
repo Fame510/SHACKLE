@@ -84,7 +84,7 @@ jobs:
         working-directory: v2/daemon
         run: |
           python -m pytest test_state_atomic.py -v --tb=short
-      - name: Run daemon<->decide() wiring proof (gating)
+      - name: "Run daemon-decide wiring proof (gating)"
         # Proves the daemon routes verdicts through the verified decide().
         # Runs from repo root so 'import shackle' resolves; PYTHONPATH includes
         # v2/daemon so 'import decision' resolves. This is a GATING check.
@@ -108,7 +108,7 @@ jobs:
       - name: Check latest commit for secret-like files
         run: |
           if git log -1 --name-only --pretty=format: | grep -qiE '(\.env$|secret|credential|password|_token|api[_-]?key)'; then
-            echo "::warning::Potential secret-like filename in commit â review before publishing."
+            echo "::warning::Potential secret-like filename in commit - review before publishing."
           else
             echo "No secret-like filenames in latest commit."
           fi
