@@ -99,3 +99,27 @@ jobs:
         continue-on-error: true
         run: |
           python -m pytest test_daemon.py -v --tb=short -k fallback
+  spec-tests:
+    name: V2 spec + ledger + protocol + conformance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install spec/ledger/protocol test deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest hypothesis PyNaCl protobuf websockets
+      - name: Property-based tests for decide() (hypothesis)
+        run: |
+          python -m pytest v2/tests/test_decide_properties.py -v --tb=short
+      - name: V2 conformance vectors
+        run: |
+          python -m pytest v2/tests/test_conformance.py -v --tb=short
+      - name: Ed25519 audit ledger tests
+        run: |
+          python -m pytest v2/tests/test_ledger.py -v --tb=short
+      - name: gRPC protocol tests
+        run: |
+          python -m pytest v2/protocol/test_protocol.py -v --tb=short
