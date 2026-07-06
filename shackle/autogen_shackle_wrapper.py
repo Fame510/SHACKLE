@@ -91,7 +91,7 @@ def guard_tool_call(
                 render_hitl_terminal(si)
             except Exception:
                 pass
-        raise ShackleBlocked(si.trigger_type, si.message) from si
+        raise ShackleBlocked(si.trigger_type, str(si)) from si
 
 
 def wrap_tool(
