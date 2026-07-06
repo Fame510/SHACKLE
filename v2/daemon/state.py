@@ -12,6 +12,10 @@ import redis.asyncio as redis
 
 logger = logging.getLogger(__name__)
 
+# Verified SP/1.0 decision surface. The daemon's verdicts are produced by the
+# reference decide() (encoded by fixtures/conformance.json), not by ad-hoc Lua.
+from decision import decide_for_daemon, build_call
+
 
 class StateManager:
     """Manages session state, budgets, and call patterns in Redis"""
@@ -53,14 +57,15 @@ class StateManager:
         return f"shackle:calls:{session_id}"
     
     def _call_hash(self, tool_name: str, parameters: Dict) -> str:
-        """Generate hash of tool call for repeat detection"""
-        # Create deterministic hash of tool + params
-        call_repr = json.dumps({
-            "tool": tool_name,
-            "params": parameters
-        }, sort_keys=True)
-        return hashlib.sha256(call_repr.encode()).hexdigest()[:16]
-    
+        """Verified canonical identity for a call.
+
+        Uses the SAME canonical_hash as the conformance vectors (full SHA-256,
+        tight separators) via decision.build_call, so the daemon's repeat/replay
+        identity matches the spec. (Previously used a truncated 16-char sha256
+        over {tool, params} with loose separators -- a different function.)
+        """
+        return build_call(tool_name, parameters)["nonce"]
+
     async def check_budget(self, session_id: str, estimated_cost: float) -> bool:
         """
         Check if session has budget remaining for this cost
@@ -232,36 +237,32 @@ class StateManager:
     # ARGV[7] = history_ttl_seconds, ARGV[8] = call_record_json
     # Returns: {decision, repeat_count} where decision is ALLOW|DENY|HITL
     _EVAL_LUA = """
+    -- Atomic STATE only. This script no longer decides ALLOW/DENY/HITL; the
+    -- daemon routes the returned state through the verified decide() in Python.
+    -- It returns: {repeat_count_including_current, spent, limit}.
     local spent = tonumber(redis.call('GET', KEYS[1]) or '0')
     local limit = tonumber(redis.call('GET', KEYS[2]) or ARGV[5])
-    local est = tonumber(ARGV[1])
-    if (spent + est) > limit then
-        return {'DENY', 0}
-    end
-
     local call_hash = ARGV[2]
-    local max_repeat = tonumber(ARGV[4])
+
     local history = redis.call('LRANGE', KEYS[3], 0, -1)
     local count = 0
     for i, item in ipairs(history) do
-        -- match on the stored hash field without full JSON decode
         if string.find(item, '"hash":"' .. call_hash .. '"', 1, true)
            or string.find(item, '"hash": "' .. call_hash .. '"', 1, true) then
             count = count + 1
         end
     end
 
-    -- Repeat detection mirrors the non-atomic path: a prior identical call must
-    -- already exist (count > 0) and the total must exceed max_repeat.
-    if count > 0 and count > max_repeat then
-        return {'HITL', count}
-    end
-
-    -- ALLOW: record this call atomically so concurrent requests can't race.
+    -- Record this call atomically so concurrent requests observe a monotonic
+    -- count. Recording happens regardless of the eventual verdict: the history
+    -- is an audit trail, and counting a subsequently-denied attempt only makes
+    -- repeat detection more conservative, never less.
     redis.call('LPUSH', KEYS[3], ARGV[8])
     redis.call('LTRIM', KEYS[3], 0, 99)
     redis.call('EXPIRE', KEYS[3], tonumber(ARGV[7]))
-    return {'ALLOW', count}
+
+    -- count is PRIOR occurrences; +1 accounts for the call just recorded.
+    return {count + 1, tostring(spent), tostring(limit)}
     """
 
     async def evaluate_and_record(
@@ -306,16 +307,32 @@ class StateManager:
                 "3600", call_record,
             )
 
-            decision = result[0]
-            if isinstance(decision, bytes):
-                decision = decision.decode()
+            # result = [lua_decision, repeat_count, spent, limit]. We ignore the
+            # Lua verdict and instead route the atomic STATE through the verified
+            # decide() so the enforced verdict is SP/1.0-conformant by construction.
             repeat_count = int(result[1])
-            return {"decision": decision, "repeat_count": repeat_count}
+            spent = float(result[2]) if len(result) > 2 else 0.0
+            limit = float(result[3]) if len(result) > 3 else default_limit
+            remaining = max(limit - spent, 0.0)
+
+            # repeat_count from Lua is the count INCLUDING the just-recorded call.
+            # decide_for_daemon expects the PRIOR count, so pass repeat_count - 1.
+            prior = max(repeat_count - 1, 0)
+            verdict, reason = decide_for_daemon(
+                tool_name=tool_name,
+                parameters=parameters,
+                budget_limit_usd=limit,
+                budget_remaining_usd=remaining,
+                max_repeat_calls=int(max_repeat),
+                prior_repeat_count=prior,
+            )
+            return {"decision": verdict, "reason": reason, "repeat_count": repeat_count}
 
         except Exception as e:
-            logger.error(f"Error in evaluate_and_record: {e}", exc_info=True)
-            # Fail open, consistent with check_budget's fail-open behavior.
-            return {"decision": "ALLOW", "repeat_count": 0}
+            logger.error(f"Error in evaluate_and_record, failing CLOSED: {e}", exc_info=True)
+            # Fail CLOSED: a governance circuit breaker must deny when it cannot
+            # evaluate, never allow. (Previously this failed open with ALLOW.)
+            return {"decision": "DENY", "reason": "fail_closed:evaluation_error", "repeat_count": 0}
 
     async def clear_session(self, session_id: str):
         """Clear all state for a session"""
