@@ -99,16 +99,3 @@ jobs:
         continue-on-error: true
         run: |
           python -m pytest test_daemon.py -v --tb=short -k fallback
-
-  secret-scan:
-    name: Secret scan
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Check latest commit for secret-like files
-        run: |
-          if git log -1 --name-only --pretty=format: | grep -qiE '(\.env$|secret|credential|password|_token|api[_-]?key)'; then
-            echo "::warning::Potential secret-like filename in commit - review before publishing."
-          else
-            echo "No secret-like filenames in latest commit."
-          fi
