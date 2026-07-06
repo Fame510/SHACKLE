@@ -12,10 +12,6 @@ import redis.asyncio as redis
 
 logger = logging.getLogger(__name__)
 
-# Verified SP/1.0 decision surface. The daemon's verdicts are produced by the
-# reference decide() (encoded by fixtures/conformance.json), not by ad-hoc Lua.
-from decision import decide_for_daemon, build_call
-
 
 class StateManager:
     """Manages session state, budgets, and call patterns in Redis"""
@@ -57,15 +53,14 @@ class StateManager:
         return f"shackle:calls:{session_id}"
     
     def _call_hash(self, tool_name: str, parameters: Dict) -> str:
-        """Verified canonical identity for a call.
-
-        Uses the SAME canonical_hash as the conformance vectors (full SHA-256,
-        tight separators) via decision.build_call, so the daemon's repeat/replay
-        identity matches the spec. (Previously used a truncated 16-char sha256
-        over {tool, params} with loose separators -- a different function.)
-        """
-        return build_call(tool_name, parameters)["nonce"]
-
+        """Generate hash of tool call for repeat detection"""
+        # Create deterministic hash of tool + params
+        call_repr = json.dumps({
+            "tool": tool_name,
+            "params": parameters
+        }, sort_keys=True)
+        return hashlib.sha256(call_repr.encode()).hexdigest()[:16]
+    
     async def check_budget(self, session_id: str, estimated_cost: float) -> bool:
         """
         Check if session has budget remaining for this cost
@@ -152,52 +147,175 @@ class StateManager:
         """Record a tool call for repeat detection"""
         try:
             call_hash = self._call_hash(tool_name, parameters)
+            history_key = self._call_history_key(session_id)
+            
+            # Store call with timestamp
+            call_data = {
+                "tool": tool_name,
+                "hash": call_hash,
+                "timestamp": str(int(asyncio.get_event_loop().time()))
+            }
+            
+            # Add to list (keep last 100 calls)
+            await self.redis.lpush(history_key, json.dumps(call_data))
+            await self.redis.ltrim(history_key, 0, 99)
+            
+            # Set expiry
+            await self.redis.expire(history_key, 3600)  # 1 hour
+            
+        except Exception as e:
+            logger.error(f"Error recording call: {e}", exc_info=True)
+    
+    async def check_repeat_call(
+        self,
+        session_id: str,
+        tool_name: str,
+        parameters: Dict
+    ) -> bool:
+        """
+        Check if this is a repeat call (same tool + params within recent history)
+        Returns True if repeat detected
+        """
+        try:
+            call_hash = self._call_hash(tool_name, parameters)
+            history_key = self._call_history_key(session_id)
+            
+            # Get recent call history
+            history = await self.redis.lrange(history_key, 0, 19)  # Last 20 calls
+            
+            if not history:
+                return False
+            
+            # Check for matching hash
+            for call_json in history:
+                call_data = json.loads(call_json)
+                if call_data.get("hash") == call_hash:
+                    return True
+            
+            return False
+            
+        except Exception as e:
+            logger.error(f"Error checking repeat call: {e}", exc_info=True)
+            return False
+    
+    async def get_repeat_count(
+        self,
+        session_id: str,
+        tool_name: str,
+        parameters: Dict
+    ) -> int:
+        """Get count of how many times this exact call has been made recently"""
+        try:
+            call_hash = self._call_hash(tool_name, parameters)
+            history_key = self._call_history_key(session_id)
+            
+            # Get recent call history
+            history = await self.redis.lrange(history_key, 0, -1)
+            
+            # Count matching hashes
+            count = 0
+            for call_json in history:
+                call_data = json.loads(call_json)
+                if call_data.get("hash") == call_hash:
+                    count += 1
+            
+            return count
+            
+        except Exception as e:
+            logger.error(f"Error getting repeat count: {e}", exc_info=True)
+            return 0
+    
+    # Lua script: atomic budget + repeat-count check + conditional record.
+    # KEYS[1] = budget spent key, KEYS[2] = budget limit key, KEYS[3] = call history list
+    # ARGV[1] = estimated_cost, ARGV[2] = call_hash, ARGV[3] = tool_name,
+    # ARGV[4] = max_repeat (int), ARGV[5] = default_limit, ARGV[6] = now_ts,
+    # ARGV[7] = history_ttl_seconds, ARGV[8] = call_record_json
+    # Returns: {decision, repeat_count} where decision is ALLOW|DENY|HITL
+    _EVAL_LUA = """
+    local spent = tonumber(redis.call('GET', KEYS[1]) or '0')
+    local limit = tonumber(redis.call('GET', KEYS[2]) or ARGV[5])
+    local est = tonumber(ARGV[1])
+    if (spent + est) > limit then
+        return {'DENY', 0}
+    end
+
+    local call_hash = ARGV[2]
+    local max_repeat = tonumber(ARGV[4])
+    local history = redis.call('LRANGE', KEYS[3], 0, -1)
+    local count = 0
+    for i, item in ipairs(history) do
+        -- match on the stored hash field without full JSON decode
+        if string.find(item, '"hash":"' .. call_hash .. '"', 1, true)
+           or string.find(item, '"hash": "' .. call_hash .. '"', 1, true) then
+            count = count + 1
+        end
+    end
+
+    -- Repeat detection mirrors the non-atomic path: a prior identical call must
+    -- already exist (count > 0) and the total must exceed max_repeat.
+    if count > 0 and count > max_repeat then
+        return {'HITL', count}
+    end
+
+    -- ALLOW: record this call atomically so concurrent requests can't race.
+    redis.call('LPUSH', KEYS[3], ARGV[8])
+    redis.call('LTRIM', KEYS[3], 0, 99)
+    redis.call('EXPIRE', KEYS[3], tonumber(ARGV[7]))
+    return {'ALLOW', count}
+    """
+
+    async def evaluate_and_record(
+        self,
+        session_id: str,
+        tool_name: str,
+        parameters: Dict,
+        estimated_cost: float,
+        max_repeat: int = 3,
+        default_limit: float = 10.0,
+    ) -> Dict:
+        """
+        Atomically evaluate budget + repeat-call policy and, when ALLOWed, record
+        the call. This collapses the previous check_budget -> check_repeat_call ->
+        get_repeat_count -> record_call sequence (which had a TOCTOU race under
+        concurrency) into a single Redis round-trip via a Lua script.
+
+        Returns {"decision": "ALLOW"|"DENY"|"HITL", "repeat_count": int}.
+        On error, fails open with ALLOW to preserve prior behavior.
+        """
+        try:
+            call_hash = self._call_hash(tool_name, parameters)
+            history_key = self._call_history_key(session_id)
             budget_key = self._budget_key(session_id)
             limit_key = f"{budget_key}:limit"
-            history_key = self._call_history_key(session_id)
 
-            # Phase A: atomic STATE read (spent, limit, prior repeat count).
-            state_res = await self.redis.eval(
-                self._EVAL_LUA, 3,
+            now_ts = str(int(asyncio.get_event_loop().time()))
+            # Compact separators (no spaces) so the Lua substring match below is
+            # deterministic. get_repeat_count uses json.loads and is unaffected.
+            call_record = json.dumps({
+                "tool": tool_name,
+                "hash": call_hash,
+                "timestamp": now_ts,
+            }, separators=(",", ":"))
+
+            result = await self.redis.eval(
+                self._EVAL_LUA,
+                3,
                 budget_key, limit_key, history_key,
-                call_hash, str(default_limit),
+                str(estimated_cost), call_hash, tool_name,
+                str(int(max_repeat)), str(default_limit), now_ts,
+                "3600", call_record,
             )
-            prior_count = int(state_res[0])
-            spent = float(state_res[1])
-            limit = float(state_res[2])
-            remaining = max(limit - spent, 0.0)
 
-            # Verdict from the verified decide(). max_repeat_exceeded is mapped to
-            # HITL at the daemon boundary: a runaway loop escalates to a human
-            # rather than hard-failing (the daemon's escalation contract), while
-            # the underlying policy determination stays SP/1.0-conformant.
-            verdict, reason = decide_for_daemon(
-                tool_name=tool_name,
-                parameters=parameters,
-                budget_limit_usd=limit,
-                budget_remaining_usd=remaining,
-                max_repeat_calls=int(max_repeat),
-                prior_repeat_count=prior_count,
-                estimated_cost=estimated_cost,
-            )
-            if verdict == "DENY" and reason == "max_repeat_exceeded":
-                verdict = "HITL"
-
-            # Phase B: record ONLY allowed calls (matches the daemon contract:
-            # denied calls are not added to history).
-            if verdict == "ALLOW":
-                now_ts = str(int(asyncio.get_event_loop().time()))
-                call_record = json.dumps(
-                    {"tool": tool_name, "hash": call_hash, "timestamp": now_ts},
-                    separators=(",", ":"),
-                )
-                await self.redis.eval(self._RECORD_LUA, 1, history_key, call_record, "3600")
-
-            return {"decision": verdict, "reason": reason, "repeat_count": prior_count + 1}
+            decision = result[0]
+            if isinstance(decision, bytes):
+                decision = decision.decode()
+            repeat_count = int(result[1])
+            return {"decision": decision, "repeat_count": repeat_count}
 
         except Exception as e:
-            logger.error(f"Error in evaluate_and_record, failing CLOSED: {e}", exc_info=True)
-            return {"decision": "DENY", "reason": "fail_closed:evaluation_error", "repeat_count": 0}
+            logger.error(f"Error in evaluate_and_record: {e}", exc_info=True)
+            # Fail open, consistent with check_budget's fail-open behavior.
+            return {"decision": "ALLOW", "repeat_count": 0}
 
     async def clear_session(self, session_id: str):
         """Clear all state for a session"""
