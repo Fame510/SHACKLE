@@ -85,3 +85,4 @@ def test_max_repeat_allows_below_limit():
 
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-v"]))
+# CI trigger: exercise daemon<->decide() wiring proof on feat branch.
