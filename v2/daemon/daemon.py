@@ -91,6 +91,15 @@ async def lifespan(app: FastAPI):
     # restarts. Falls back to an ephemeral key with a loud warning if unset.
     signing_key, key_is_persistent = load_signing_key()
     if not key_is_persistent:
+        # Fail CLOSED in production: an ephemeral signing key makes the audit
+        # trail unverifiable across restarts, which defeats the tamper-evident
+        # ledger guarantee. Refuse to start rather than run un-auditable.
+        if os.getenv("SHACKLE_ENV", "").lower() in ("production", "prod"):
+            raise RuntimeError(
+                "Refusing to start in production without a persistent audit "
+                "signing key. Set SHACKLE_SIGNING_KEY or SHACKLE_SIGNING_KEY_FILE "
+                "(inject it from your secrets manager)."
+            )
         logger.warning(
             "Audit signing key is EPHEMERAL. Set SHACKLE_SIGNING_KEY (ideally from a "
             "secrets manager) so audit records remain verifiable after restarts."
@@ -153,15 +162,18 @@ async def pre_exec(req: PreExecRequest):
         )
         decision = evaluation["decision"]
         repeat_count = evaluation["repeat_count"]
+        # Verified SP/1.0 reason code (e.g. budget_exhausted, max_repeat_exceeded,
+        # fail_closed:evaluation_error) produced by decide(), not a hardcoded string.
+        reason_code = evaluation.get("reason", "unspecified")
 
         if decision == "DENY":
             await audit_logger.log_decision(
                 session_id=req.session_id,
                 tool_name=req.tool_name,
                 decision="DENY",
-                reason="Budget exceeded",
+                reason=reason_code,
             )
-            return PreExecResponse(decision="DENY", reason="Budget exceeded")
+            return PreExecResponse(decision="DENY", reason=reason_code)
 
         if decision == "HITL":
             hitl_token = f"hitl_{req.session_id}_{datetime.utcnow().timestamp()}"
@@ -170,7 +182,7 @@ async def pre_exec(req: PreExecRequest):
                 session_id=req.session_id,
                 tool_name=req.tool_name,
                 decision="HITL",
-                reason=f"Repeat call detected ({repeat_count} times)",
+                reason=reason_code,
             )
 
             # Create future for HITL response
@@ -188,7 +200,7 @@ async def pre_exec(req: PreExecRequest):
 
             return PreExecResponse(
                 decision="HITL",
-                reason=f"Repeat call detected ({repeat_count} times)",
+                reason=reason_code,
                 hitl_token=hitl_token,
             )
 
@@ -197,10 +209,10 @@ async def pre_exec(req: PreExecRequest):
             session_id=req.session_id,
             tool_name=req.tool_name,
             decision="ALLOW",
-            reason="Passed budget and repeat checks",
+            reason=reason_code,
         )
 
-        return PreExecResponse(decision="ALLOW", reason="Passed all checks")
+        return PreExecResponse(decision="ALLOW", reason=reason_code)
 
     except Exception as e:
         logger.error(f"Error in pre_exec: {e}", exc_info=True)
