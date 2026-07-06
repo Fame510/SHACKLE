@@ -51,6 +51,7 @@ def decide_for_daemon(
     budget_remaining_usd: float,
     max_repeat_calls: int,
     prior_repeat_count: int,
+    estimated_cost: float = 0.0,
     hitl_mode: str = "never",
 ) -> Tuple[Verdict, str]:
     """Produce the verified (verdict, reason) for one pre-exec evaluation.
@@ -67,8 +68,11 @@ def decide_for_daemon(
         "hitl_mode": hitl_mode,
     }
     effective_count = prior_repeat_count + 1
+    # Deduct this call's estimated cost so a call that would exceed the budget is
+    # denied up front (matches the daemon's pre-flight budget gate).
+    remaining_after = budget_remaining_usd - estimated_cost
     state: Dict[str, Any] = {
-        "budget_remaining_usd": budget_remaining_usd,
+        "budget_remaining_usd": remaining_after,
         "budget_initial_usd": budget_limit_usd,
         "repeat_counts": {tool_name: effective_count},
         "last_tool_name": tool_name,
