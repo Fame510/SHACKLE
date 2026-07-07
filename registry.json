@@ -1,0 +1,16 @@
+{
+  "sp_version": "SP/1.0",
+  "updated": "2026-07-07",
+  "note": "Public SHACKLE Conformance Registry. A runtime is listed only after its submitted conformance report is verified against the public fixtures. Anyone can re-run the fixtures to check any listing.",
+  "certified": [
+    {
+      "name": "SHACKLE Reference Implementation",
+      "vendor": "Aeon_Dux / Sovereign Logic",
+      "level": "SP/1.0-Sovereign",
+      "version": "v2",
+      "date": "2026-07-07",
+      "evidence": "https://github.com/Fame510/SHACKLE/blob/master/fixtures/conformance.json",
+      "notes": "Authoritative reference runtime. Defines the SP/1.0 fixtures."
+    }
+  ]
+}
