@@ -1,0 +1,90 @@
+# SHACKLE Certification - automated verification
+# Trigger: a certification-request issue is opened/edited/labeled.
+# Action: run the PUBLIC SP/1.0 conformance fixtures in a clean environment and
+# post the reproducibility verdict back on the issue. Does NOT execute arbitrary
+# submitter code (that would be a security hole). Listing stays human-gated.
+
+name: Certification Verify
+
+on:
+  issues:
+    types: [opened, edited, labeled]
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  verify:
+    if: contains(join(github.event.issue.labels.*.name, ','), 'certification-request')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest rich hypothesis
+          pip install -e . || echo "running against source tree"
+
+      - name: Run SP/1.0 conformance fixtures (root + v2)
+        id: conf
+        run: |
+          set +e
+          {
+            echo "### Root conformance (tests/)"
+            PYTHONPATH=. python -m pytest tests/test_conformance.py -rA --tb=short
+            echo "ROOT_EXIT=$?"
+            echo ""
+            echo "### V2 conformance (v2/tests/) - includes HITL transition fixtures"
+            PYTHONPATH=. python -m pytest v2/tests/test_conformance.py -rA --tb=short
+            echo "V2_EXIT=$?"
+          } > conf_out.txt 2>&1
+          cat conf_out.txt
+          if grep -q "ROOT_EXIT=0" conf_out.txt && grep -q "V2_EXIT=0" conf_out.txt; then
+            echo "verdict=PASS" >> "$GITHUB_OUTPUT"
+          else
+            echo "verdict=FAIL" >> "$GITHUB_OUTPUT"
+          fi
+          exit 0
+
+      - name: Post verification verdict to issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let out = '';
+            try { out = fs.readFileSync('conf_out.txt', 'utf8'); } catch (e) { out = '(no output captured)'; }
+            const tail = out.split('\n').slice(-40).join('\n');
+            const verdict = process.env.VERDICT;
+            const emoji = verdict === 'PASS' ? '\u2705' : '\u274c';
+            const body = [
+              '## ' + emoji + ' SP/1.0 fixture reproducibility: **' + verdict + '**',
+              '',
+              'This automated check re-ran the **public** SHACKLE conformance fixtures from a clean clone at commit `' + context.sha.slice(0,7) + '`.',
+              '',
+              verdict === 'PASS'
+                ? 'The reference fixtures pass. A maintainer will now compare your submitted report and linked evidence against these fixtures, and if your runtime reproduces them at the level claimed it will be added to registry.json and listed.'
+                : 'The reference fixtures did NOT pass in this run. This is a repo-side signal, not a judgment of your submission; a maintainer will investigate.',
+              '',
+              '<details><summary>conformance output (tail)</summary>',
+              '',
+              '```',
+              tail,
+              '```',
+              '</details>',
+              '',
+              '_Automated by the Certification Verify workflow. Listing remains human-reviewed by design._'
+            ].join('\n');
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body
+            });
+        env:
+          VERDICT: ${{ steps.conf.outputs.verdict }}
