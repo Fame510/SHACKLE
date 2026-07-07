@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SHACKLE Conformance Registry — SP/1.0</title>
+<meta name="description" content="Public registry of runtimes certified against the SHACKLE SP/1.0 conformance standard. Every listing is independently reproducible.">
+<style>
+  :root{--black:#0a0a0a;--dark-gray:#141414;--gray:#1e1e1e;--border:#2a2a2a;--white:#f5f5f5;--muted:#8a8a8a;--green:#00ff88;}
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{background:var(--black);color:var(--white);font-family:'SF Mono',ui-monospace,Menlo,Consolas,monospace;line-height:1.6;}
+  .container{max-width:1000px;margin:0 auto;padding:0 24px;}
+  header{border-bottom:1px solid var(--border);padding:28px 0;position:sticky;top:0;background:rgba(10,10,10,.9);backdrop-filter:blur(8px);}
+  header .container{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;}
+  .brand{font-weight:700;letter-spacing:2px;}
+  .brand a{color:var(--white);text-decoration:none;}
+  nav a{color:var(--muted);text-decoration:none;margin-left:20px;font-size:14px;}
+  nav a:hover{color:var(--green);}
+  .hero{padding:64px 0 32px;}
+  .label{color:var(--green);font-size:13px;letter-spacing:2px;text-transform:uppercase;margin-bottom:12px;}
+  h1{font-size:38px;line-height:1.15;margin-bottom:16px;}
+  .intro{color:var(--muted);max-width:680px;}
+  .actions{margin:28px 0 8px;display:flex;gap:14px;flex-wrap:wrap;}
+  .btn{display:inline-block;padding:12px 20px;text-decoration:none;font-weight:600;font-size:14px;border:1px solid var(--green);}
+  .btn-primary{background:var(--green);color:var(--black);}
+  .btn-ghost{color:var(--green);background:transparent;}
+  table{width:100%;border-collapse:collapse;margin:32px 0 64px;font-size:14px;}
+  th,td{text-align:left;padding:14px 12px;border-bottom:1px solid var(--border);vertical-align:top;}
+  th{color:var(--muted);text-transform:uppercase;font-size:12px;letter-spacing:1px;}
+  .lvl{display:inline-block;padding:3px 8px;border:1px solid var(--green);color:var(--green);font-size:12px;white-space:nowrap;}
+  td a{color:var(--green);}
+  .empty{color:var(--muted);padding:24px 0;}
+  footer{border-top:1px solid var(--border);padding:32px 0;color:var(--muted);font-size:13px;}
+  .note{color:var(--muted);font-size:13px;margin-top:8px;}
+</style>
+</head>
+<body>
+<header><div class="container">
+  <div class="brand"><a href="./index.html">SHACKLE</a></div>
+  <nav><a href="./index.html#certify">Certify</a><a href="./registry.html">Registry</a><a href="https://github.com/Fame510/SHACKLE">GitHub</a></nav>
+</div></header>
+
+<section class="hero"><div class="container">
+  <div class="label">// SP/1.0 Conformance Registry</div>
+  <h1>Certified Runtimes</h1>
+  <p class="intro">Every runtime listed here has submitted a conformance report verified against the public SP/1.0 fixtures. A listing is not a badge you buy — it is a claim anyone can re-run and check. That is the entire point.</p>
+  <div class="actions">
+    <a class="btn btn-primary" href="https://github.com/Fame510/SHACKLE/issues/new?template=certification_request.yml">Get Certified &rarr;</a>
+    <a class="btn btn-ghost" href="https://github.com/Fame510/SHACKLE/blob/master/README.md#-get-shackle-certified">How Certification Works</a>
+  </div>
+</div></section>
+
+<div class="container">
+  <table id="reg">
+    <thead><tr><th>Runtime</th><th>Vendor</th><th>Level</th><th>Ver</th><th>Date</th><th>Evidence</th></tr></thead>
+    <tbody id="reg-body"><tr><td class="empty" colspan="6">Loading registry…</td></tr></tbody>
+  </table>
+  <p class="note" id="reg-note"></p>
+</div>
+
+<footer><div class="container">
+  SHACKLE / SP/1.0 &middot; Aeon_Dux &middot; Sovereign Logic. Listings are verified against
+  <a href="https://github.com/Fame510/SHACKLE/blob/master/fixtures/conformance.json" style="color:var(--green)">public conformance fixtures</a>.
+</div></footer>
+
+<script>
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+fetch('./registry.json?_=' + Date.now()).then(r=>r.json()).then(data=>{
+  var body=document.getElementById('reg-body');
+  var rows=(data.certified||[]);
+  if(!rows.length){ body.innerHTML='<tr><td class="empty" colspan="6">No runtimes certified yet. Be the first.</td></tr>'; }
+  else { body.innerHTML=rows.map(function(r){
+    return '<tr><td>'+esc(r.name)+(r.notes?'<div style="color:#8a8a8a;font-size:12px">'+esc(r.notes)+'</div>':'')+'</td>'+
+    '<td>'+esc(r.vendor)+'</td><td><span class="lvl">'+esc(r.level)+'</span></td>'+
+    '<td>'+esc(r.version)+'</td><td>'+esc(r.date)+'</td>'+
+    '<td>'+(r.evidence?'<a href="'+esc(r.evidence)+'">verify</a>':'&mdash;')+'</td></tr>';
+  }).join(''); }
+  var note=document.getElementById('reg-note');
+  if(data.updated) note.textContent='Registry updated '+data.updated+' · '+(data.sp_version||'SP/1.0');
+}).catch(function(){
+  document.getElementById('reg-body').innerHTML='<tr><td class="empty" colspan="6">Registry data unavailable. See <a href="https://github.com/Fame510/SHACKLE/blob/master/registry.json" style="color:#00ff88">registry.json</a>.</td></tr>';
+});
+</script>
+</body>
+</html>
