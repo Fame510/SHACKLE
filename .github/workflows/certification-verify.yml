@@ -9,6 +9,15 @@ name: Certification Verify
 on:
   issues:
     types: [opened, edited, labeled]
+  workflow_dispatch: {}   # manual "Run workflow" button (phone-friendly)
+  push:
+    branches: [master]
+    paths:
+      - "v2/spec/**"
+      - "v2/tests/**"
+      - "tests/**"
+      - "fixtures/**"
+      - "shackle/**"
 
 permissions:
   issues: write
@@ -88,3 +97,38 @@ jobs:
             });
         env:
           VERDICT: ${{ steps.conf.outputs.verdict }}
+
+  conformance:
+    # Runs on manual dispatch or push (no issue to comment on) - reports to the run summary.
+    if: github.event_name != 'issues'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest rich hypothesis
+          pip install -e . || echo "running against source tree"
+      - name: Run SP/1.0 conformance fixtures (root + v2)
+        run: |
+          set +e
+          echo "## SP/1.0 Conformance Results" >> "$GITHUB_STEP_SUMMARY"
+          echo '### Root (tests/)' >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          PYTHONPATH=. python -m pytest tests/test_conformance.py -rA --tb=short 2>&1 | tee -a "$GITHUB_STEP_SUMMARY"
+          ROOT=${PIPESTATUS[0]}
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo '### V2 (v2/tests/) - includes HITL transitions' >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          PYTHONPATH=. python -m pytest v2/tests/test_conformance.py -rA --tb=short 2>&1 | tee -a "$GITHUB_STEP_SUMMARY"
+          V2=${PIPESTATUS[0]}
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          if [ "$ROOT" -eq 0 ] && [ "$V2" -eq 0 ]; then
+            echo "### Verdict: PASS" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "### Verdict: FAIL (root=$ROOT v2=$V2)" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
