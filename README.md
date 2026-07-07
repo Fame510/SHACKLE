@@ -27,6 +27,35 @@ A runtime is **SHACKLE-conformant** iff it passes the published fixture set — 
 
 ---
 
+
+## 🎓 Get SHACKLE Certified
+
+**SHACKLE Certification** is how a runtime proves — not promises — that it correctly enforces the SP/1.0 mediation contract. Certification is measured against the **14 public, hash-verifiable conformance fixtures** in [`fixtures/conformance.json`](fixtures/conformance.json). No trust required: the same vectors that certify you are the ones anyone can re-run to check the claim.
+
+### Certification Levels
+
+| Level | Name | Requirement |
+|-------|------|-------------|
+| **SP/1.0-Core** | Core Conformance | Passes all mediation fixtures: ALLOW / DENY / HITL verdicts match, with correct deny reasons. |
+| **SP/1.0-HITL** | Transition-Complete | Core, plus all human-in-the-loop transition fixtures (approve / reject / modify / defer-escalate / duplicate-resume). |
+| **SP/1.0-Sovereign** | Enterprise Runtime | HITL, plus daemon atomic-state, ledger tamper-evidence, and audit-export requirements (V2 runtime). |
+
+### How to Certify (available now)
+
+1. **Run the suite.** Execute the SP/1.0 conformance fixtures against your runtime:
+   ```bash
+   pytest v2/tests/test_conformance.py
+   ```
+2. **Capture the evidence.** SHACKLE emits a per-fixture pass/fail report with the fixture hashes it verified against. That report *is* your conformance artifact — it is independently reproducible.
+3. **Self-declare or submit for listing.** You may display an SP/1.0 conformance badge once you pass. To be listed in the public **SHACKLE Conformance Registry**, open a `certification-request` issue with your report attached (see [`.github/ISSUE_TEMPLATE`](.github/ISSUE_TEMPLATE)).
+4. **Get listed.** Verified submissions are added to the public registry with the level achieved, the SP/1.0 version, and the date.
+
+### Why it matters
+
+A certification is only worth what it can withstand. SP/1.0 is deliberately built to survive adversarial scrutiny: every fixture is public, every verdict is deterministic, every hash is reproducible. If a runtime claims conformance, you can check it yourself in minutes — that is the entire point.
+
+> **Certify your agents.** → [Start with the conformance fixtures](fixtures/conformance.json)
+
 ## Integrations (LiteLLM + AutoGen)
 
 SHACKLE now ships first-class governance for the biggest chokepoints in the agent stack. See **[INTEGRATIONS.md](INTEGRATIONS.md)** for full usage and LiteLLM proxy `config.yaml` examples.
