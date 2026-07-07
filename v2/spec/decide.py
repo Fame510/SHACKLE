@@ -102,6 +102,9 @@ class SessionState:
     seen_nonces: Set[int] = field(default_factory=set)
 
 
+    # HITL transition state (SP/1.0): persisted decision on an original call
+    # awaiting/finished a human transition. None = no pending transition.
+    pending_transition: Optional[Dict[str, object]] = None
 @dataclass
 class ToolCall:
     """A proposed tool execution request from the agent."""
@@ -227,6 +230,31 @@ def decide(
     if state.circuit_tripped:
         return Decision(Verdict.DENY, DenyReason.CIRCUIT_OPEN,
                         f"Circuit open: {state.circuit_trip_reason}")
+
+    # Layer 1b: HITL transition resolution (SP/1.0).
+    # A resume of a call that carried a human-in-the-loop decision MUST honor the
+    # persisted transition and never fall through to budget/threshold rules.
+    # Backs fixtures/conformance.json :: hitl_transition_*.
+    pt = state.pending_transition
+    if pt:
+        _decision = str(pt.get("decision", "")).lower()
+        # Duplicate resume of an already-resolved (rejected) transition. Checked
+        # before plain reject because both carry decision == "reject".
+        if pt.get("resume_attempt") is True:
+            return Decision(Verdict.DENY, DenyReason.POLICY_VIOLATION,
+                            "[hitl_transition:duplicate_resume]")
+        if _decision == "reject":
+            return Decision(Verdict.DENY, DenyReason.POLICY_VIOLATION,
+                            "[hitl_transition:reject]")
+        if _decision == "defer":
+            return Decision(Verdict.HITL,
+                            human_readable="[hitl_transition:defer_escalate]")
+        if _decision == "approve":
+            return Decision(Verdict.ALLOW,
+                            human_readable="[hitl_transition:approve]")
+        if _decision == "modify":
+            return Decision(Verdict.ALLOW,
+                            human_readable="[hitl_transition:modify_successor]")
 
     # Layer 2: Nonce validation (anti-replay)
     if call.nonce in state.seen_nonces:

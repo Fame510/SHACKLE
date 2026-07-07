@@ -79,6 +79,17 @@ def _build_state(s: dict, call: ToolCall) -> SessionState:
 def _reason_string(d: Decision) -> str:
     """Map a typed Decision to the fixture reason string form."""
     hr = (d.human_readable or "").lower()
+    # HITL transition markers (SP/1.0) — checked before generic verdict fallbacks.
+    if "[hitl_transition:duplicate_resume]" in hr:
+        return "policy_violation:duplicate_resume_no_effect"
+    if "[hitl_transition:reject]" in hr:
+        return "hitl_transition:reject"
+    if "[hitl_transition:defer_escalate]" in hr:
+        return "hitl_transition:defer_escalate"
+    if "[hitl_transition:approve]" in hr:
+        return "hitl_transition:approve"
+    if "[hitl_transition:modify_successor]" in hr:
+        return "hitl_transition:modify_successor"
     if d.verdict == Verdict.ALLOW:
         return "within_thresholds"
     if d.verdict == Verdict.DENY:
