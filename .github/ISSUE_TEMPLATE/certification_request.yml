@@ -1,0 +1,66 @@
+name: SHACKLE Certification Request
+description: Submit a runtime for SP/1.0 conformance certification and public registry listing.
+title: "[CERT] <runtime name> — SP/1.0 certification request"
+labels: ["certification-request"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## SHACKLE Certification Request
+        Certification is verified against the **public conformance fixtures**. Run
+        `pytest v2/tests/test_conformance.py` against your runtime, then submit the
+        report below. Every claim here must be independently reproducible.
+  - type: input
+    id: runtime_name
+    attributes:
+      label: Runtime / Product Name
+      placeholder: e.g. Acme Agent Runtime
+    validations:
+      required: true
+  - type: input
+    id: vendor
+    attributes:
+      label: Vendor / Organization
+    validations:
+      required: true
+  - type: dropdown
+    id: level
+    attributes:
+      label: Certification Level Claimed
+      options:
+        - SP/1.0-Core (mediation fixtures)
+        - SP/1.0-HITL (mediation + transition fixtures)
+        - SP/1.0-Sovereign (HITL + daemon/ledger/audit, V2 runtime)
+    validations:
+      required: true
+  - type: input
+    id: sp_version
+    attributes:
+      label: SP Version Targeted
+      value: "SP/1.0"
+    validations:
+      required: true
+  - type: textarea
+    id: report
+    attributes:
+      label: Conformance Report
+      description: Paste the full per-fixture pass/fail output, including the fixture hashes verified.
+      render: shell
+    validations:
+      required: true
+  - type: input
+    id: evidence_url
+    attributes:
+      label: Reproducible Evidence URL
+      description: Link to a public repo/commit/CI run where the fixtures can be re-run.
+    validations:
+      required: true
+  - type: checkboxes
+    id: attest
+    attributes:
+      label: Attestation
+      options:
+        - label: I attest this report is genuine and reproducible from the linked evidence.
+          required: true
+        - label: I understand listing requires independent verification against the public fixtures.
+          required: true
