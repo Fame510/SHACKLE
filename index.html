@@ -701,6 +701,11 @@
     .standard-card h4 { margin: 0 0 .5rem 0; font-size: 1.02rem; }
     .standard-card p { margin: 0; opacity: .85; font-size: .93rem; line-height: 1.5; }
     .standard-card code { background: rgba(255,255,255,0.08); padding: .05em .35em; border-radius: 5px; font-size: .86em; }
+
+  .cert-steps { max-width: 780px; margin: 32px auto 0; padding-left: 20px; color: var(--white); }
+  .cert-steps li { margin: 10px 0; line-height: 1.6; }
+  .cert-steps code { background: var(--dark-gray); color: var(--green); padding: 2px 6px; border: 1px solid var(--border); }
+  .cta-row { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; margin-top: 32px; }
 </style>
 </head>
 <body>
@@ -1101,6 +1106,46 @@
       </p>
       <div style="text-align:center; margin-top:2rem;">
         <a href="https://github.com/Fame510/SHACKLE/blob/master/CONFORMANCE.md" class="btn btn-primary">Read the SP/1.0 Spec &rarr;</a>
+        <a href="https://github.com/Fame510/SHACKLE/blob/master/fixtures/conformance.json" class="btn btn-ghost">View the Fixtures &rarr;</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="certify">
+    <div class="container">
+      <div class="section-label">// Certification</div>
+      <h2>Get SHACKLE Certified.</h2>
+      <p class="section-intro">
+        A certification is only worth what it can withstand. <strong>SHACKLE Certification</strong> proves &mdash; not
+        promises &mdash; that a runtime correctly enforces the SP/1.0 mediation contract, measured against
+        <strong>14 public, hash-verifiable conformance fixtures</strong>. The same vectors that certify you are the ones
+        anyone can re-run to check the claim. No trust required.
+      </p>
+
+      <div class="standard-grid">
+        <div class="standard-card">
+          <h4>SP/1.0-Core</h4>
+          <p>Core Conformance. All mediation fixtures pass &mdash; ALLOW / DENY / HITL verdicts and deny reasons match the spec.</p>
+        </div>
+        <div class="standard-card">
+          <h4>SP/1.0-HITL</h4>
+          <p>Transition-Complete. Core, plus every human-in-the-loop transition: approve, reject, modify, defer-escalate, duplicate-resume.</p>
+        </div>
+        <div class="standard-card">
+          <h4>SP/1.0-Sovereign</h4>
+          <p>Enterprise Runtime. HITL, plus daemon atomic-state, ledger tamper-evidence, and audit export (V2 runtime).</p>
+        </div>
+      </div>
+
+      <ol class="cert-steps">
+        <li><strong>Run the suite.</strong> Execute the conformance fixtures against your runtime: <code>pytest v2/tests/test_conformance.py</code>.</li>
+        <li><strong>Capture the evidence.</strong> SHACKLE emits a per-fixture pass/fail report with the fixture hashes verified. That report is your reproducible conformance artifact.</li>
+        <li><strong>Submit for listing.</strong> Open a certification request with your report to be added to the public SHACKLE Conformance Registry.</li>
+        <li><strong>Get listed.</strong> Verified runtimes are published with the level achieved, SP/1.0 version, and date.</li>
+      </ol>
+
+      <div class="cta-row">
+        <a href="https://github.com/Fame510/SHACKLE/blob/master/README.md#-get-shackle-certified" class="btn btn-primary">Certify Your Agents &rarr;</a>
         <a href="https://github.com/Fame510/SHACKLE/blob/master/fixtures/conformance.json" class="btn btn-ghost">View the Fixtures &rarr;</a>
       </div>
     </div>
