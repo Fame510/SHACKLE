@@ -70,18 +70,28 @@ async def test_deny_does_not_record(state):
 
 
 @pytest.mark.asyncio
-async def test_hitl_after_repeats(state):
+async def test_deny_at_repeat_ceiling(state):
+    """
+    SP/1.0 conformance ('deny_max_repeat'): the repeat ceiling trips at exactly
+    max_repeat total attempts. With max_repeat=3, the effective count (prior + the
+    current call) reaches 3 on the third identical call, which is DENIED with
+    reason max_repeat_exceeded. So the first two are ALLOWed, the rest DENIED.
+    (DENY is stricter than HITL; enforcement is not weakened.)
+    """
     session = _new_session()
     params = {"iteration": "same"}
     decisions = []
+    reasons = []
     for _ in range(6):
         res = await state.evaluate_and_record(
             session_id=session, tool_name="repeat_tool",
             parameters=params, estimated_cost=0.001, max_repeat=3,
         )
         decisions.append(res["decision"])
-    assert decisions[0] == "ALLOW"
-    assert "HITL" in decisions
+        reasons.append(res.get("reason"))
+    assert decisions[:2] == ["ALLOW", "ALLOW"]
+    assert all(d == "DENY" for d in decisions[2:])
+    assert "max_repeat_exceeded" in reasons
     await state.clear_session(session)
 
 
@@ -104,13 +114,16 @@ async def test_concurrent_calls_are_atomic(state):
 
     results = await asyncio.gather(*[one() for _ in range(20)])
     allows = sum(1 for r in results if r["decision"] == "ALLOW")
-    hitls = sum(1 for r in results if r["decision"] == "HITL")
+    denies = sum(1 for r in results if r["decision"] == "DENY")
 
-    # Core atomicity guarantee: recorded count == number of ALLOW verdicts
-    # (no lost or phantom records under concurrency).
+    # Core atomicity guarantee: the recorded history depth equals the number of
+    # ALLOW verdicts -- no lost or phantom records under concurrency, and DENIED
+    # calls never mutate state.
     recorded = await state.get_repeat_count(session, "race_tool", params)
     assert recorded == allows
-    # The ceiling must engage: not all 20 concurrent calls can be allowed.
-    assert hitls > 0
-    assert allows < 20
+    # The ceiling engages atomically: with max_repeat=3 exactly (max_repeat - 1)
+    # identical calls may be allowed+recorded; the rest are denied. No TOCTOU
+    # leak lets extra calls slip past the ceiling under concurrency.
+    assert allows == max_repeat - 1
+    assert denies == 20 - (max_repeat - 1)
     await state.clear_session(session)
