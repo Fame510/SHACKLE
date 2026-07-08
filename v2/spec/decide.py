@@ -343,16 +343,19 @@ def decide(
                 return Decision(Verdict.DENY, DenyReason.BUDGET_EXHAUSTED,
                                 "Budget enforcement (probabilistic)", probabilistic_deny=True)
 
-    # Layer 10: HITL always (higher precedence than opaque — matches
-    # shackle/conformance.py authority: an explicit "HITL for every call" policy
-    # is reported before the fail-closed opaque-context reason).
-    if config.hitl_mode == HitlMode.ALWAYS:
-        return Decision(Verdict.HITL, human_readable="HITL required for all calls")
-
-    # Layer 11: fail-closed on opaque / unevaluable context
+    # Layer 10: fail-closed on opaque / unevaluable context.
+    # RULING (Dante, fail-closed): an opaque/unevaluable context means the guard
+    # could not evaluate the call AT ALL — a stronger safety signal than a blanket
+    # "HITL for everything" policy — so it is surfaced BEFORE hitl_always. Both
+    # cores (this file and shackle/conformance.py) and
+    # fixtures/conformance_combined.json:opaque_beats_hitl_always pin this order.
     if params is not None and has_opaque_context(params):
         return Decision(Verdict.HITL,
                         human_readable="[opaque_context] fail-closed: context not deterministically evaluable")
+
+    # Layer 11: HITL always
+    if config.hitl_mode == HitlMode.ALWAYS:
+        return Decision(Verdict.HITL, human_readable="HITL required for all calls")
 
     # Layer 12: HITL budget threshold (lower precedence than ALWAYS; matches reference)
     if (config.hitl_mode == HitlMode.ON_THRESHOLD and config.budget_usd > 0
