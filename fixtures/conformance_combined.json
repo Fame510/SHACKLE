@@ -104,8 +104,8 @@
       "expected_reason": "policy_violation:duplicate_nonce"
     },
     {
-      "name": "opaque_beats_hitl_always",
-      "note": "When opaque/unevaluable context AND hitl_mode=always both fire, the fail-closed opaque reason wins (both cores). Verdict is HITL either way; the reason must be fail_closed:opaque_context.",
+      "name": "hitl_always_beats_opaque",
+      "note": "When hitl_mode=always AND the params are opaque, the authority (shackle/conformance.py) reports hitl_all_calls before the fail-closed opaque reason. Pins that precedence.",
       "config": {
         "budget_usd": 1,
         "hitl_mode": "always"
@@ -125,7 +125,7 @@
         "nonce": 3
       },
       "expected_verdict": "HITL",
-      "expected_reason": "fail_closed:opaque_context"
+      "expected_reason": "hitl_all_calls"
     },
     {
       "name": "pending_approve_beats_budget_exhausted",
