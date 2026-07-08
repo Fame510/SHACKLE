@@ -73,7 +73,7 @@ jobs:
           # hypothesis: property proofs P1-P9. pynacl: ledger signature enforcement
           # (F3) — without it the adversarial signature tests are skipped and the
           # tamper-evidence guarantee is unverified.
-          pip install pytest hypothesis pynacl
+          pip install pytest hypothesis pynacl rich rich
       - name: Run v2 spec suite (GATING)
         # This is the suite that actually proves the standard: single-trigger
         # conformance, combined-trigger precedence + anti-divergence guard,
