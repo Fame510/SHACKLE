@@ -1,0 +1,205 @@
+{
+  "spec": "SHACKLE SP/1.0",
+  "description": "Combined-trigger and boundary conformance fixtures. These pin the ONE canonical layer precedence when two or more conditions are simultaneously active — the exact space the single-trigger fixtures/conformance.json never probed. Added by fix/audit-hardening after an adversarial audit found shackle/conformance.py and v2/spec/decide.py disagreed here (notably: an approved-then-replayed nonce). Authority = shackle/conformance.py::decide; v2/spec/decide.py must reproduce these.",
+  "canonicalization": {
+    "hash": "sha256",
+    "serialization": "json, keys sorted ascending, separators (',',':'), UTF-8"
+  },
+  "fixtures": [
+    {
+      "name": "replay_beats_stale_approval",
+      "note": "CRITICAL: a duplicate nonce carrying a stale 'approve' transition must DENY as replay, never ALLOW. This is the guardrail-resume invariant.",
+      "config": {
+        "budget_usd": 1
+      },
+      "state": {
+        "circuit_tripped": false,
+        "budget_initial_usd": 1,
+        "budget_remaining_usd": 1,
+        "seen_nonces": [
+          40
+        ],
+        "pending_transition": {
+          "decision": "approve",
+          "terminal_status": "consumed_on_execute"
+        }
+      },
+      "call": {
+        "tool_name": "purchase",
+        "params": {
+          "tool": "purchase"
+        },
+        "nonce": 40
+      },
+      "expected_verdict": "DENY",
+      "expected_reason": "policy_violation:duplicate_nonce"
+    },
+    {
+      "name": "malformed_beats_circuit",
+      "config": {
+        "budget_usd": 1
+      },
+      "state": {
+        "circuit_tripped": true,
+        "circuit_trip_reason": "prior",
+        "seen_nonces": []
+      },
+      "call": {
+        "tool_name": "click",
+        "params": {
+          "__noncanonical__": true,
+          "tool": "click"
+        },
+        "nonce": 1
+      },
+      "expected_verdict": "DENY",
+      "expected_reason": "policy_violation:malformed_input"
+    },
+    {
+      "name": "circuit_beats_hitl_always",
+      "config": {
+        "budget_usd": 1,
+        "hitl_mode": "always"
+      },
+      "state": {
+        "circuit_tripped": true,
+        "circuit_trip_reason": "prior",
+        "seen_nonces": []
+      },
+      "call": {
+        "tool_name": "a",
+        "params": {
+          "tool": "a"
+        },
+        "nonce": 2
+      },
+      "expected_verdict": "DENY",
+      "expected_reason": "circuit_open"
+    },
+    {
+      "name": "dupnonce_beats_pending_reject",
+      "config": {
+        "budget_usd": 1
+      },
+      "state": {
+        "circuit_tripped": false,
+        "budget_initial_usd": 1,
+        "budget_remaining_usd": 1,
+        "seen_nonces": [
+          5
+        ],
+        "pending_transition": {
+          "decision": "reject",
+          "terminal_status": "rejected"
+        }
+      },
+      "call": {
+        "tool_name": "purchase",
+        "params": {
+          "tool": "purchase"
+        },
+        "nonce": 5
+      },
+      "expected_verdict": "DENY",
+      "expected_reason": "policy_violation:duplicate_nonce"
+    },
+    {
+      "name": "hitl_always_beats_opaque",
+      "note": "When both fire, hitl_always is the higher-precedence HITL reason.",
+      "config": {
+        "budget_usd": 1,
+        "hitl_mode": "always"
+      },
+      "state": {
+        "circuit_tripped": false,
+        "budget_initial_usd": 1,
+        "budget_remaining_usd": 1,
+        "seen_nonces": []
+      },
+      "call": {
+        "tool_name": "click",
+        "params": {
+          "ctx": "opaque",
+          "tool": "click"
+        },
+        "nonce": 3
+      },
+      "expected_verdict": "HITL",
+      "expected_reason": "hitl_all_calls"
+    },
+    {
+      "name": "pending_approve_beats_budget_exhausted",
+      "note": "A fresh (non-replayed) approved transition releases even when budget is 0 — the human already accepted the cost.",
+      "config": {
+        "budget_usd": 1
+      },
+      "state": {
+        "circuit_tripped": false,
+        "budget_initial_usd": 1,
+        "budget_remaining_usd": 0,
+        "seen_nonces": [],
+        "pending_transition": {
+          "decision": "approve",
+          "terminal_status": "consumed_on_execute"
+        }
+      },
+      "call": {
+        "tool_name": "purchase",
+        "params": {
+          "tool": "purchase"
+        },
+        "nonce": 31
+      },
+      "expected_verdict": "ALLOW",
+      "expected_reason": "hitl_transition:approve"
+    },
+    {
+      "name": "boundary_repeat_below_limit_allows",
+      "note": "repeat_count == max-1 must still ALLOW (off-by-one guard).",
+      "config": {
+        "budget_usd": 0,
+        "max_repeat_calls": 3
+      },
+      "state": {
+        "circuit_tripped": false,
+        "last_tool_name": "click",
+        "repeat_counts": {
+          "click": 2
+        },
+        "seen_nonces": []
+      },
+      "call": {
+        "tool_name": "click",
+        "params": {
+          "target": "submit",
+          "tool": "click"
+        },
+        "nonce": 50
+      },
+      "expected_verdict": "ALLOW",
+      "expected_reason": "within_thresholds"
+    },
+    {
+      "name": "boundary_budget_just_positive_allows",
+      "note": "remaining just above 0 with budget set must ALLOW, not deny.",
+      "config": {
+        "budget_usd": 1
+      },
+      "state": {
+        "circuit_tripped": false,
+        "budget_initial_usd": 1,
+        "budget_remaining_usd": 0.0001,
+        "seen_nonces": []
+      },
+      "call": {
+        "tool_name": "click",
+        "params": {
+          "tool": "click"
+        },
+        "nonce": 51
+      },
+      "expected_verdict": "ALLOW",
+      "expected_reason": "within_thresholds"
+    }
+  ]
+}
