@@ -55,6 +55,34 @@ jobs:
         run: |
           PYTHONPATH=. python tests/test_conformance.py
 
+  v2-spec-tests:
+    name: V2 spec (conformance + properties + ledger + combined)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          # hypothesis: property proofs P1-P9. pynacl: ledger signature enforcement
+          # (F3) — without it the adversarial signature tests are skipped and the
+          # tamper-evidence guarantee is unverified.
+          pip install pytest hypothesis pynacl
+      - name: Run v2 spec suite (GATING)
+        # This is the suite that actually proves the standard: single-trigger
+        # conformance, combined-trigger precedence + anti-divergence guard,
+        # property invariants, and non-bypassable ledger signatures. It MUST gate
+        # the build — a green check with these unrun is exactly the hollow-green
+        # the audit flagged.
+        run: |
+          python -m pytest v2/tests/ -rA --tb=short
+
   daemon-tests:
     name: V2 daemon (atomic state + fallback)
     runs-on: ubuntu-latest
