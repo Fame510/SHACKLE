@@ -238,32 +238,52 @@ class StateManager:
     # ARGV[7] = history_ttl_seconds, ARGV[8] = call_record_json
     # Returns: {decision, repeat_count} where decision is ALLOW|DENY|HITL
     _EVAL_LUA = """
-    -- Atomic STATE only. This script no longer decides ALLOW/DENY/HITL; the
-    -- daemon routes the returned state through the verified decide() in Python.
-    -- It returns: {repeat_count_including_current, spent, limit}.
+    -- Atomic budget-charge + conditional record. The AUTHORITATIVE verdict is
+    -- still produced by the verified decide() in Python; this script performs
+    -- the state mutation atomically and mirrors decide()'s allow-gate so that a
+    -- call mutates state (charges budget, appends history) IFF it would be
+    -- ALLOWed/HITL'd. A DENIED call must not mutate state, otherwise a rejected
+    -- attempt would charge budget or inflate the repeat count and cascade denials.
+    --
+    -- ARGV: [1]=estimated_cost [2]=call_hash [3]=tool_name [4]=max_repeat
+    --       [5]=default_limit  [6]=now_ts    [7]=expire     [8]=call_record
+    -- Returns: {prior_count, remaining_after_charge, limit, recorded}.
+    --   prior_count EXCLUDES the current call.
+    --   remaining_after_charge = limit - spent - cost (what decide() must see:
+    --   <= 0 means this call would exceed budget -> budget_exhausted).
+    local cost = tonumber(ARGV[1])
+    local max_repeat = tonumber(ARGV[4])
     local spent = tonumber(redis.call('GET', KEYS[1]) or '0')
     local limit = tonumber(redis.call('GET', KEYS[2]) or ARGV[5])
     local call_hash = ARGV[2]
 
     local history = redis.call('LRANGE', KEYS[3], 0, -1)
-    local count = 0
+    local prior = 0
     for i, item in ipairs(history) do
         if string.find(item, '"hash":"' .. call_hash .. '"', 1, true)
            or string.find(item, '"hash": "' .. call_hash .. '"', 1, true) then
-            count = count + 1
+            prior = prior + 1
         end
     end
 
-    -- Record this call atomically so concurrent requests observe a monotonic
-    -- count. Recording happens regardless of the eventual verdict: the history
-    -- is an audit trail, and counting a subsequently-denied attempt only makes
-    -- repeat detection more conservative, never less.
-    redis.call('LPUSH', KEYS[3], ARGV[8])
-    redis.call('LTRIM', KEYS[3], 0, 99)
-    redis.call('EXPIRE', KEYS[3], tonumber(ARGV[7]))
+    local remaining_after = limit - spent - cost
+    -- Mirror decide(): budget bites only with a positive budget; repeat ceiling
+    -- trips at exactly max_repeat total attempts (prior + this call).
+    local budget_exhausted = (limit > 0) and (remaining_after <= 0)
+    -- decide() trips the repeat ceiling when the effective count (prior + this
+    -- call) reaches max_repeat. Mirror that exactly.
+    local repeat_exhausted = (max_repeat > 0) and ((prior + 1) >= max_repeat)
+    local recorded = 0
+    if (not budget_exhausted) and (not repeat_exhausted) then
+        redis.call('INCRBYFLOAT', KEYS[1], cost)
+        redis.call('EXPIRE', KEYS[1], tonumber(ARGV[7]))
+        redis.call('LPUSH', KEYS[3], ARGV[8])
+        redis.call('LTRIM', KEYS[3], 0, 99)
+        redis.call('EXPIRE', KEYS[3], tonumber(ARGV[7]))
+        recorded = 1
+    end
 
-    -- count is PRIOR occurrences; +1 accounts for the call just recorded.
-    return {count + 1, tostring(spent), tostring(limit)}
+    return {prior, tostring(remaining_after), tostring(limit), recorded}
     """
 
     async def evaluate_and_record(
@@ -308,17 +328,15 @@ class StateManager:
                 "3600", call_record,
             )
 
-            # result = [lua_decision, repeat_count, spent, limit]. We ignore the
-            # Lua verdict and instead route the atomic STATE through the verified
-            # decide() so the enforced verdict is SP/1.0-conformant by construction.
-            repeat_count = int(result[1])
-            spent = float(result[2]) if len(result) > 2 else 0.0
-            limit = float(result[3]) if len(result) > 3 else default_limit
-            remaining = max(limit - spent, 0.0)
+            # result = [prior_count, remaining_after_charge, limit, recorded].
+            # The Lua script performs the atomic state mutation but does NOT
+            # decide; we route the atomic STATE through the verified decide() so
+            # the enforced verdict is SP/1.0-conformant by construction.
+            prior = int(result[0])
+            remaining = float(result[1]) if len(result) > 1 else 0.0
+            limit = float(result[2]) if len(result) > 2 else default_limit
+            recorded = int(result[3]) if len(result) > 3 else 0
 
-            # repeat_count from Lua is the count INCLUDING the just-recorded call.
-            # decide_for_daemon expects the PRIOR count, so pass repeat_count - 1.
-            prior = max(repeat_count - 1, 0)
             verdict, reason = decide_for_daemon(
                 tool_name=tool_name,
                 parameters=parameters,
@@ -327,6 +345,17 @@ class StateManager:
                 max_repeat_calls=int(max_repeat),
                 prior_repeat_count=prior,
             )
+            # The Lua allow-gate mirrors decide(): state is mutated (budget charged,
+            # call recorded) IFF the verdict is ALLOW/HITL. Assert they agree so any
+            # divergence surfaces loudly instead of silently corrupting state.
+            should_mutate = verdict in ("ALLOW", "HITL")
+            if bool(recorded) != should_mutate:
+                logger.error(
+                    "record-gate divergence: lua recorded=%s but decide()=%s (%s). "
+                    "This must never happen; investigate the Lua/decide() gate.",
+                    recorded, verdict, reason,
+                )
+            repeat_count = prior + (1 if recorded else 0)
             return {"decision": verdict, "reason": reason, "repeat_count": repeat_count}
 
         except Exception as e:
