@@ -1,16 +1,17 @@
 {
   "sp_version": "SP/1.0",
-  "updated": "2026-07-07",
-  "note": "Public SHACKLE Conformance Registry. A runtime is listed only after its submitted conformance report is verified against the public fixtures. Anyone can re-run the fixtures to check any listing.",
+  "updated": "2026-07-08",
+  "note": "Public SHACKLE Conformance Registry. A runtime is listed only after its submitted conformance report is verified against the public fixtures (fixtures/conformance.json and fixtures/conformance_combined.json). Anyone can re-run the fixtures to check any listing.",
   "certified": [
     {
       "name": "SHACKLE Reference Implementation",
-      "vendor": "Aeon_Dux / Sovereign Logic",
+      "vendor": "Sovereign Logic",
+      "author": "Dante Bullock (@Fame510)",
       "level": "SP/1.0-Sovereign",
       "version": "v2",
-      "date": "2026-07-07",
+      "date": "2026-07-08",
       "evidence": "https://github.com/Fame510/SHACKLE/blob/master/fixtures/conformance.json",
-      "notes": "Authoritative reference runtime. Defines the SP/1.0 fixtures."
+      "notes": "Authoritative reference runtime authored by Dante Bullock (Sovereign Logic). Defines the SP/1.0 single-trigger and combined-trigger fixtures; conformance is verified by re-running both fixture sets."
     }
   ]
 }
