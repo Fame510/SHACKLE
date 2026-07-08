@@ -104,8 +104,8 @@
       "expected_reason": "policy_violation:duplicate_nonce"
     },
     {
-      "name": "hitl_always_beats_opaque",
-      "note": "When both fire, hitl_always is the higher-precedence HITL reason.",
+      "name": "opaque_beats_hitl_always",
+      "note": "When opaque/unevaluable context AND hitl_mode=always both fire, the fail-closed opaque reason wins (both cores). Verdict is HITL either way; the reason must be fail_closed:opaque_context.",
       "config": {
         "budget_usd": 1,
         "hitl_mode": "always"
@@ -125,7 +125,7 @@
         "nonce": 3
       },
       "expected_verdict": "HITL",
-      "expected_reason": "hitl_all_calls"
+      "expected_reason": "fail_closed:opaque_context"
     },
     {
       "name": "pending_approve_beats_budget_exhausted",
