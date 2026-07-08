@@ -224,29 +224,69 @@ def decide(
     config: GuardConfig,
     rng_float: float = 0.0,
 ) -> Decision:
-    """Core policy decision. 8 stacked layers. Pure function. Zero I/O."""
+    """Core policy decision. Fail-closed, stacked layers. Pure function. Zero I/O.
 
-    # Layer 1: Circuit breaker (highest priority)
+    SP/1.0 PRECEDENCE (single canonical order — must match shackle/conformance.py::decide,
+    which the published fixtures + fixtures/conformance_combined.json pin):
+
+      1. malformed / non-canonicalizable input   -> DENY  (fail-closed on input we can't hash)
+      2. circuit already open                     -> DENY
+      3. duplicate nonce (replay)                 -> DENY  (specialized: duplicate resume of a
+                                                     terminal transition -> DENY duplicate_resume)
+      4. HITL transition contract                 -> ALLOW/DENY/HITL
+      5. budget exhausted                         -> DENY
+      6. max repeat exceeded                      -> DENY
+      7. time window exceeded                     -> DENY
+      8. global call limit                        -> DENY
+      9. probabilistic denial (adversarial)       -> DENY
+     10. opaque / unevaluable context             -> HITL  (fail-closed)
+     11. HITL always                              -> HITL
+     12. HITL budget threshold                    -> HITL
+     13. default                                  -> ALLOW
+
+    AUDIT NOTE (fix/audit-hardening): replay MUST win over a stale human approval — a
+    duplicate nonce is denied BEFORE the pending_transition is honored, so an
+    approved-then-replayed call can never resume past the guardrail. Malformed input and
+    circuit-open are checked before the transition for the same fail-closed reason. This
+    ordering was previously divergent from shackle/conformance.py and is now unified.
+    """
+    params = call.tool_params
+
+    # Layer 1: malformed / non-canonicalizable input (fail-closed; can't hash -> can't trust)
+    if params is not None and not is_canonicalizable(params):
+        return Decision(Verdict.DENY, DenyReason.POLICY_VIOLATION,
+                        "[malformed_input] non-canonicalizable params rejected")
+
+    # Layer 2: circuit breaker
     if state.circuit_tripped:
         return Decision(Verdict.DENY, DenyReason.CIRCUIT_OPEN,
                         f"Circuit open: {state.circuit_trip_reason}")
 
-    # Layer 1b: HITL transition resolution (SP/1.0).
-    # A resume of a call that carried a human-in-the-loop decision MUST honor the
-    # persisted transition and never fall through to budget/threshold rules.
-    # Backs fixtures/conformance.json :: hitl_transition_*.
+    # Layer 3: nonce / anti-replay. Checked BEFORE the transition so a replayed nonce that
+    # happens to carry a stale approval is denied, not honored.
+    if call.nonce in state.seen_nonces:
+        pt = state.pending_transition
+        if (pt and pt.get("resume_attempt") is True
+                and str(pt.get("terminal_status", "")).lower() in ("rejected", "superseded")):
+            return Decision(Verdict.DENY, DenyReason.POLICY_VIOLATION,
+                            "[hitl_transition:duplicate_resume]")
+        return Decision(Verdict.DENY, DenyReason.POLICY_VIOLATION,
+                        "Duplicate nonce — replay attack suspected")
+
+    # Layer 4: HITL transition resolution (SP/1.0). A resume of a call that carried a human
+    # decision honors the persisted transition. Duplicate-resume of a terminal transition is
+    # denied here too (defensive, when the replayed nonce was not pre-seeded in seen_nonces).
     pt = state.pending_transition
     if pt:
         _decision = str(pt.get("decision", "")).lower()
-        # Duplicate resume of an already-resolved (rejected) transition. Checked
-        # before plain reject because both carry decision == "reject".
-        if pt.get("resume_attempt") is True:
+        if (pt.get("resume_attempt") is True
+                and str(pt.get("terminal_status", "")).lower() in ("rejected", "superseded")):
             return Decision(Verdict.DENY, DenyReason.POLICY_VIOLATION,
                             "[hitl_transition:duplicate_resume]")
         if _decision == "reject":
             return Decision(Verdict.DENY, DenyReason.POLICY_VIOLATION,
                             "[hitl_transition:reject]")
-        if _decision == "defer":
+        if _decision in ("defer", "escalate"):
             return Decision(Verdict.HITL,
                             human_readable="[hitl_transition:defer_escalate]")
         if _decision == "approve":
@@ -256,29 +296,11 @@ def decide(
             return Decision(Verdict.ALLOW,
                             human_readable="[hitl_transition:modify_successor]")
 
-    # Layer 2: Nonce validation (anti-replay)
-    if call.nonce in state.seen_nonces:
-        return Decision(Verdict.DENY, DenyReason.POLICY_VIOLATION,
-                        "Duplicate nonce â replay attack suspected")
-
-    # Layer 2b: Canonicalization guard (reject non-canonicalizable input)
-    # A differing hash for logically-equal params is a conformance failure, so
-    # any input we cannot deterministically canonicalize is denied outright.
-    if call.tool_params is not None and not is_canonicalizable(call.tool_params):
-        return Decision(Verdict.DENY, DenyReason.POLICY_VIOLATION,
-                        "[malformed_input] non-canonicalizable params rejected")
-
-    # Layer 3: Budget guard
+    # Layer 5: budget guard
     if config.budget_usd > 0:
         if state.budget_remaining_usd <= 0:
             return Decision(Verdict.DENY, DenyReason.BUDGET_EXHAUSTED,
                             f"Budget exhausted: ${state.budget_spent_usd:.4f} / ${state.budget_initial_usd:.4f}")
-
-        if config.hitl_mode == HitlMode.ON_THRESHOLD:
-            fraction = state.budget_remaining_usd / state.budget_initial_usd
-            if fraction <= config.hitl_budget_threshold:
-                return Decision(Verdict.HITL,
-                                human_readable=f"Budget threshold: {fraction:.1%} remaining")
 
         if call.estimated_cost_usd > state.budget_remaining_usd:
             if config.hitl_mode in (HitlMode.ON_DENY, HitlMode.ALWAYS):
@@ -287,7 +309,7 @@ def decide(
             return Decision(Verdict.DENY, DenyReason.BUDGET_EXHAUSTED,
                             f"Cost ${call.estimated_cost_usd:.4f} > remaining ${state.budget_remaining_usd:.4f}")
 
-    # Layer 4: Repeat call guard
+    # Layer 6: repeat call guard
     if config.max_repeat_calls > 0:
         is_repeat = (call.tool_name == state.last_tool_name and
                      call.tool_params_hash == state.last_tool_params_hash)
@@ -300,19 +322,19 @@ def decide(
                 return Decision(Verdict.DENY, DenyReason.MAX_REPEAT_EXCEEDED,
                                 f"'{call.tool_name}' repeated {repeat_count + 1}x (limit: {config.max_repeat_calls})")
 
-    # Layer 5: Time window guard
+    # Layer 7: time window guard
     if config.window_max_calls > 0:
         count = state.window_counts.get(call.tool_name, 0)
         if count >= config.window_max_calls:
             return Decision(Verdict.DENY, DenyReason.WINDOW_EXCEEDED,
                             f"'{call.tool_name}' {count}x in {config.window_duration_s}s window (limit: {config.window_max_calls})")
 
-    # Layer 6: Global call limit
+    # Layer 8: global call limit
     if config.max_total_calls > 0 and state.total_calls >= config.max_total_calls:
         return Decision(Verdict.DENY, DenyReason.GLOBAL_LIMIT,
                         f"Global limit: {state.total_calls}/{config.max_total_calls}")
 
-    # Layer 7: Probabilistic denial (adversarial hardening)
+    # Layer 9: probabilistic denial (adversarial hardening)
     if config.probabilistic_deny and config.budget_usd > 0 and state.budget_initial_usd > 0:
         ratio = state.budget_remaining_usd / state.budget_initial_usd
         if ratio < 0.2:
@@ -321,16 +343,22 @@ def decide(
                 return Decision(Verdict.DENY, DenyReason.BUDGET_EXHAUSTED,
                                 "Budget enforcement (probabilistic)", probabilistic_deny=True)
 
-    # Layer 7b: Fail-closed on opaque/unevaluable context.
-    # When context cannot be evaluated deterministically we MUST fail closed
-    # (HITL), never silent ALLOW. Circuit/nonce/budget/limits above still win.
-    if call.tool_params is not None and has_opaque_context(call.tool_params):
+    # Layer 10: fail-closed on opaque / unevaluable context
+    if params is not None and has_opaque_context(params):
         return Decision(Verdict.HITL,
                         human_readable="[opaque_context] fail-closed: context not deterministically evaluable")
 
-    # Layer 8: HITL always
+    # Layer 11: HITL always
     if config.hitl_mode == HitlMode.ALWAYS:
         return Decision(Verdict.HITL, human_readable="HITL required for all calls")
+
+    # Layer 12: HITL budget threshold (lower precedence than ALWAYS; matches reference)
+    if (config.hitl_mode == HitlMode.ON_THRESHOLD and config.budget_usd > 0
+            and state.budget_initial_usd > 0):
+        fraction = state.budget_remaining_usd / state.budget_initial_usd
+        if fraction <= config.hitl_budget_threshold:
+            return Decision(Verdict.HITL,
+                            human_readable=f"Budget threshold: {fraction:.1%} remaining")
 
     return Decision(Verdict.ALLOW, human_readable="Within all guard thresholds")
 
