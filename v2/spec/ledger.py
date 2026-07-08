@@ -130,34 +130,89 @@ class AuditLedger:
                     out.append(json.loads(line))
         return out
 
-    def verify_chain(self) -> Dict[str, object]:
+    def verify_chain(
+        self,
+        expected_verify_key: Optional[str] = None,
+        require_signatures: Optional[bool] = None,
+    ) -> Dict[str, object]:
         """Recompute the chain and validate every signature.
 
-        Returns {valid, count, broken_at, reason}. broken_at is the 0-based
-        index of the first bad record, or None when the chain is intact.
+        Returns {valid, count, broken_at, reason, signed}. broken_at is the
+        0-based index of the first bad record, or None when the chain is intact.
+
+        SECURITY (fix/audit-hardening): the record_hash is a keyless SHA-256, so
+        an attacker who edits a record can simply recompute every record_hash and
+        the hash chain alone will still verify. The Ed25519 signature is the ONLY
+        thing that binds the chain to an identity, so signature checking must not
+        be skippable by blanking the signature fields.
+
+        Rules:
+          * expected_verify_key: pin the identity. If provided, every record MUST
+            be signed by exactly this key. A record whose verify_key differs (an
+            attacker re-signing with their own key) is rejected even if its own
+            signature is internally consistent.
+          * require_signatures: when True, a missing/blank signature is a failure.
+            Defaults to True whenever this ledger can verify signatures
+            (expected_verify_key given, or this instance signs, or PyNaCl present).
+            An attacker can therefore no longer strip signatures to pass.
+          * Only a ledger that is unsigned *by design* (no PyNaCl anywhere, no
+            expected key, no signing instance) falls back to hash-chain-only, and
+            it reports signed=False + an explicit reason so callers never mistake
+            a checksum for cryptographic tamper-evidence.
         """
+        pin = expected_verify_key or self.verify_key_hex or None
+        can_verify = _HAVE_NACL and (pin is not None or self.signing_key is not None)
+        if require_signatures is None:
+            require_signatures = can_verify
+
+        if require_signatures and not _HAVE_NACL:
+            return {"valid": False, "count": 0, "broken_at": None, "signed": False,
+                    "reason": "signatures required but PyNaCl is unavailable to verify them"}
+
         records = self.read_all()
         prev = GENESIS
+        any_signed = False
         for i, rec in enumerate(records):
             core = {k: v for k, v in rec.items()
                     if k not in ("record_hash", "signature", "verify_key")}
             if core.get("prev_hash") != prev:
                 return {"valid": False, "count": len(records), "broken_at": i,
+                        "signed": any_signed,
                         "reason": "prev_hash mismatch (record removed or reordered)"}
             expected = hashlib.sha256((_canonical(core) + prev).encode()).hexdigest()
             if expected != rec.get("record_hash"):
                 return {"valid": False, "count": len(records), "broken_at": i,
+                        "signed": any_signed,
                         "reason": "record_hash mismatch (tampered content)"}
             sig, vk = rec.get("signature"), rec.get("verify_key")
-            if sig and vk and _HAVE_NACL:
+            if require_signatures:
+                if not sig or not vk:
+                    return {"valid": False, "count": len(records), "broken_at": i,
+                            "signed": any_signed,
+                            "reason": "missing signature (required) — chain not cryptographically bound"}
+                if pin is not None and vk != pin:
+                    return {"valid": False, "count": len(records), "broken_at": i,
+                            "signed": any_signed,
+                            "reason": "verify_key does not match pinned identity (possible re-sign attack)"}
+            if sig and vk:
+                if not _HAVE_NACL:
+                    return {"valid": False, "count": len(records), "broken_at": i,
+                            "signed": any_signed,
+                            "reason": "signed record present but PyNaCl unavailable to verify"}
                 try:
                     VerifyKey(vk, encoder=HexEncoder).verify(
                         rec["record_hash"].encode(), bytes.fromhex(sig))
+                    any_signed = True
                 except Exception:
                     return {"valid": False, "count": len(records), "broken_at": i,
+                            "signed": any_signed,
                             "reason": "signature verification failed"}
             prev = rec["record_hash"]
-        return {"valid": True, "count": len(records), "broken_at": None, "reason": "ok"}
+        reason = "ok" if (any_signed or not can_verify) else "ok (unverified: no signatures present)"
+        if not can_verify and not any_signed:
+            reason = "ok (hash-chain only; unsigned ledger — not cryptographically tamper-evident)"
+        return {"valid": True, "count": len(records), "broken_at": None,
+                "signed": any_signed, "reason": reason}
 
 
 if __name__ == "__main__":
