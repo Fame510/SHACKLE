@@ -706,6 +706,9 @@
   .cert-steps li { margin: 10px 0; line-height: 1.6; }
   .cert-steps code { background: var(--dark-gray); color: var(--green); padding: 2px 6px; border: 1px solid var(--border); }
   .cta-row { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; margin-top: 32px; }
+
+  .cert-explainer { max-width: 820px; margin: 28px auto 0; color: var(--white); line-height: 1.7; }
+  .cert-explainer code { background: var(--dark-gray); color: var(--green); padding: 1px 5px; border: 1px solid var(--border); }
 </style>
 </head>
 <body>
@@ -728,7 +731,7 @@
   </div>
 
   <p class="hero-subtitle">
-    SHACKLE is the 1-line runtime circuit breaker that catches autonomous agents in silent infinite loops and halts the run before the next call &mdash; capping the bleed instead of letting it run unbounded. Works with CrewAI, LangGraph, AutoGen (sync &amp; async) &mdash; zero refactoring.
+    SHACKLE is the runtime governance layer that catches autonomous agents in silent infinite loops and halts the run before the next call &mdash; capping the bleed instead of letting it run unbounded. It is also <strong>SP/1.0</strong>: the authored, verifiable conformance standard for agent mediation &mdash; live today, and its reference implementation provably passes its own conformance suite. Works with CrewAI, LangGraph, AutoGen (sync &amp; async) &mdash; zero refactoring.
   </p>
 
   <div class="hero-cta">
@@ -1122,6 +1125,10 @@
         anyone can re-run to check the claim. No trust required.
       </p>
 
+      <div class="cert-explainer">
+        <p><strong>What SP/1.0 actually governs:</strong> every moment an autonomous agent is about to act &mdash; call a tool, spend budget, invoke another agent, execute a transaction. SP/1.0 defines, verifiably, whether that action is <code>ALLOW</code>, <code>DENY</code>, or <code>HITL</code> (halt for a human), on a simple contract: <em>a transition is valid only if everything it requires is within what the system provably supports</em>. Its core invariant &mdash; <em>history-visible &ne; runtime-executable</em> &mdash; means a rejected or deferred action can never "resume" its way past the guardrail. For a buyer, that answers the one question every acquirer and regulator asks about autonomy: <strong>can you prove it does only what it's allowed to do?</strong> A SHACKLE-certified runtime can &mdash; in minutes, from a clean clone.</p>
+      </div>
+
       <div class="standard-grid">
         <div class="standard-card">
           <h4>SP/1.0-Core</h4>
@@ -1143,6 +1150,11 @@
         <li><strong>Submit for listing.</strong> Open a certification request with your report to be added to the public SHACKLE Conformance Registry.</li>
         <li><strong>Get listed.</strong> Verified runtimes are published with the level achieved, SP/1.0 version, and date.</li>
       </ol>
+
+      <div class="cert-explainer">
+        <h4 style="color:var(--green);margin-bottom:8px;">An open standard. An open door.</h4>
+        <p>SP/1.0 is neutral and public. <strong>Any agent runtime &mdash; including competing frameworks and competing safety products &mdash; is invited to test against it and be listed.</strong> The fixtures are public, the verdicts are deterministic, the registry is open. We hold our own reference implementation to exactly the bar we ask of everyone else. A standard is only worth what it can withstand: if a runtime conforms, the registry proves it; if it doesn't, the fixtures show exactly where. The measure is public, and the same for everyone.</p>
+      </div>
 
       <div class="cta-row">
         <a href="https://github.com/Fame510/SHACKLE/issues/new?template=certification_request.yml" class="btn btn-primary">Get Certified &rarr;</a>
