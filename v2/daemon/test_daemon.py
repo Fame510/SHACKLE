@@ -24,6 +24,10 @@ class TestShackleIntegration:
         is_available = await client.check_daemon()
         print(f"Daemon available: {is_available}")
         assert isinstance(is_available, bool)
+        # Whether up or down, a subsequent benign call must still yield a concrete
+        # decision (live) or the documented fallback ALLOW — never an error/None.
+        probe = await client.pre_exec(tool_name="health_probe", parameters={"x": 1})
+        assert probe.get("decision") in ("ALLOW", "DENY", "HITL")
     
     @pytest.mark.asyncio
     async def test_pre_exec_allow(self, client):
@@ -34,8 +38,15 @@ class TestShackleIntegration:
             estimated_cost=0.001
         )
         
-        assert "decision" in result
-        assert result["decision"] in ["ALLOW", "DENY"]
+        assert "decision" in result, "pre_exec must return a decision"
+        # A benign first-time call must be ALLOWED — both a healthy daemon and
+        # fallback mode return ALLOW here. Accepting DENY (as the old test did)
+        # made this assertion vacuous.
+        assert result["decision"] == "ALLOW", (
+            f"benign call should be ALLOW, got {result['decision']} "
+            f"(reason={result.get('reason')})"
+        )
+        assert result.get("reason"), "an ALLOW decision must carry a reason"
         print(f"Pre-exec result: {result}")
     
     @pytest.mark.asyncio
@@ -43,25 +54,39 @@ class TestShackleIntegration:
         """Test repeat call detection triggers HITL"""
         tool_name = "repeat_test"
         params = {"test": "repeat"}
-        
-        # Make same call multiple times
+
+        # Repeat detection is real daemon behavior; fallback mode always ALLOWs,
+        # so this assertion is only meaningful against a live daemon. Skip
+        # honestly rather than pretend to test it (the old version had NO
+        # assertion at all and could never fail).
+        if not await client.check_daemon():
+            pytest.skip("daemon unavailable; repeat-detection is not exercised in fallback mode")
+
+        decisions = []
         for i in range(5):
             result = await client.pre_exec(
                 tool_name=tool_name,
                 parameters=params,
-                estimated_cost=0.001
+                estimated_cost=0.001,
             )
+            decisions.append(result["decision"])
             print(f"Call {i+1}: {result['decision']}")
-            
-            if result["decision"] != "HITL":
-                # Record as executed
-                await client.post_exec(
-                    tool_name=tool_name,
-                    parameters=params,
-                    result={"success": True},
-                    actual_cost=0.001,
-                    execution_time_ms=10.0
-                )
+
+            if result["decision"] in ("HITL", "DENY"):
+                break
+            # Record as executed so the repeat counter advances.
+            await client.post_exec(
+                tool_name=tool_name,
+                parameters=params,
+                result={"success": True},
+                actual_cost=0.001,
+                execution_time_ms=10.0,
+            )
+
+        # Identical calls repeated up to the limit MUST eventually be gated.
+        assert decisions[-1] in ("HITL", "DENY"), (
+            f"repeated identical calls should be gated (HITL/DENY), got sequence {decisions}"
+        )
     
     @pytest.mark.asyncio
     async def test_decorator_basic(self, client):
@@ -72,12 +97,12 @@ class TestShackleIntegration:
             await asyncio.sleep(0.01)
             return {"processed": value}
         
-        try:
-            result = await test_tool("test_value")
-            print(f"Tool result: {result}")
-            assert result["processed"] == "test_value"
-        except PermissionError as e:
-            print(f"Tool denied: {e}")
+        # A benign decorated call must actually run and return its result.
+        # Swallowing PermissionError as a pass (the old behavior) let a wrongly
+        # denied tool masquerade as a passing test.
+        result = await test_tool("test_value")
+        print(f"Tool result: {result}")
+        assert result["processed"] == "test_value"
     
     @pytest.mark.asyncio
     async def test_fallback_mode(self):
