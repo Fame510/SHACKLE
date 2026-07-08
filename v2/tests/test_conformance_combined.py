@@ -24,10 +24,18 @@ from decide import (  # noqa: E402
     Verdict, DenyReason, HitlMode, decide as decide_typed, hash_params,
 )
 
-# dict core (repo root: shackle/conformance.py)
+# dict core (repo root: shackle/conformance.py). Import the MODULE BY FILE PATH so we
+# do not trigger shackle/__init__.py, which pulls in the heavy runtime (core.py ->
+# rich) that the pure reference decision function does not need. This keeps the
+# conformance check runnable in a minimal environment — the whole point of a
+# reproducible reference.
+import importlib.util as _ilu  # noqa: E402
 _ROOT = os.path.join(os.path.dirname(__file__), "..", "..")
-sys.path.insert(0, _ROOT)
-from shackle.conformance import decide as decide_dict  # noqa: E402
+_CONF_PATH = os.path.join(_ROOT, "shackle", "conformance.py")
+_spec = _ilu.spec_from_file_location("shackle_conformance_ref", _CONF_PATH)
+_mod = _ilu.module_from_spec(_spec)
+_spec.loader.exec_module(_mod)
+decide_dict = _mod.decide  # noqa: E402
 
 FIXTURES = os.path.join(_ROOT, "fixtures", "conformance_combined.json")
 
