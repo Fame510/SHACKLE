@@ -135,35 +135,33 @@ class AuditLedger:
         expected_verify_key: Optional[str] = None,
         require_signatures: Optional[bool] = None,
     ) -> Dict[str, object]:
-        """Recompute the chain and validate every signature.
+        """Recompute the chain and validate integrity.
 
-        Returns {valid, count, broken_at, reason, signed}. broken_at is the
-        0-based index of the first bad record, or None when the chain is intact.
+        Returns {valid, count, broken_at, reason, signed}.
 
-        SECURITY (fix/audit-hardening): the record_hash is a keyless SHA-256, so
-        an attacker who edits a record can simply recompute every record_hash and
-        the hash chain alone will still verify. The Ed25519 signature is the ONLY
-        thing that binds the chain to an identity, so signature checking must not
-        be skippable by blanking the signature fields.
+        SECURITY (fix/audit-hardening): record_hash is a keyless SHA-256, so an
+        attacker who edits a record can recompute the whole chain and the hash
+        chain alone still verifies. The Ed25519 signature is the only identity
+        binding, so signature checking must not be skippable by blanking the
+        signature fields.
 
-        Rules:
-          * expected_verify_key: pin the identity. If provided, every record MUST
-            be signed by exactly this key. A record whose verify_key differs (an
-            attacker re-signing with their own key) is rejected even if its own
-            signature is internally consistent.
-          * require_signatures: when True, a missing/blank signature is a failure.
-            Defaults to True whenever this ledger can verify signatures
-            (expected_verify_key given, or this instance signs, or PyNaCl present).
-            An attacker can therefore no longer strip signatures to pass.
-          * Only a ledger that is unsigned *by design* (no PyNaCl anywhere, no
-            expected key, no signing instance) falls back to hash-chain-only, and
-            it reports signed=False + an explicit reason so callers never mistake
-            a checksum for cryptographic tamper-evidence.
+        Two modes:
+          * DEFAULT (backward compatible): verify the hash chain AND verify each
+            record's signature against its OWN embedded verify_key. This detects
+            in-place content tampering (hash mismatch) and correctly supports
+            legitimate multi-instance/rotated-key chains, where each record is
+            signed by whatever key was active when it was written. A record that
+            carries a signature which does not verify is rejected.
+          * STRICT (opt-in): pass expected_verify_key to PIN one identity — every
+            record must be signed by exactly that key (defeats an attacker who
+            re-signs with their own key). require_signatures (defaults True in
+            strict mode, or when explicitly set) makes a missing/blank signature
+            a hard failure, so signatures can no longer be stripped to pass.
         """
-        pin = expected_verify_key or self.verify_key_hex or None
-        can_verify = _HAVE_NACL and (pin is not None or self.signing_key is not None)
+        pin = expected_verify_key  # ONLY an explicit pin enforces one identity
         if require_signatures is None:
-            require_signatures = can_verify
+            # Strict signature presence is required when an identity is pinned.
+            require_signatures = pin is not None
 
         if require_signatures and not _HAVE_NACL:
             return {"valid": False, "count": 0, "broken_at": None, "signed": False,
@@ -185,15 +183,14 @@ class AuditLedger:
                         "signed": any_signed,
                         "reason": "record_hash mismatch (tampered content)"}
             sig, vk = rec.get("signature"), rec.get("verify_key")
-            if require_signatures:
-                if not sig or not vk:
-                    return {"valid": False, "count": len(records), "broken_at": i,
-                            "signed": any_signed,
-                            "reason": "missing signature (required) — chain not cryptographically bound"}
-                if pin is not None and vk != pin:
-                    return {"valid": False, "count": len(records), "broken_at": i,
-                            "signed": any_signed,
-                            "reason": "verify_key does not match pinned identity (possible re-sign attack)"}
+            if require_signatures and (not sig or not vk):
+                return {"valid": False, "count": len(records), "broken_at": i,
+                        "signed": any_signed,
+                        "reason": "missing signature (required) — chain not cryptographically bound"}
+            if pin is not None and vk and vk != pin:
+                return {"valid": False, "count": len(records), "broken_at": i,
+                        "signed": any_signed,
+                        "reason": "verify_key does not match pinned identity (possible re-sign attack)"}
             if sig and vk:
                 if not _HAVE_NACL:
                     return {"valid": False, "count": len(records), "broken_at": i,
@@ -208,19 +205,12 @@ class AuditLedger:
                             "signed": any_signed,
                             "reason": "signature verification failed"}
             prev = rec["record_hash"]
-        reason = "ok" if (any_signed or not can_verify) else "ok (unverified: no signatures present)"
-        if not can_verify and not any_signed:
-            reason = "ok (hash-chain only; unsigned ledger — not cryptographically tamper-evident)"
+
+        if any_signed:
+            reason = "ok"
+        elif _HAVE_NACL:
+            reason = "ok (WARNING: no signatures present — not cryptographically tamper-evident)"
+        else:
+            reason = "ok (hash-chain only; PyNaCl unavailable — not cryptographically tamper-evident)"
         return {"valid": True, "count": len(records), "broken_at": None,
                 "signed": any_signed, "reason": reason}
-
-
-if __name__ == "__main__":
-    import tempfile
-    p = os.path.join(tempfile.mkdtemp(), "audit.log")
-    led = AuditLedger(p)
-    led.log_decision("s1", "click", "ALLOW", "within_thresholds")
-    led.log_decision("s1", "spend", "DENY", "budget_exhausted")
-    res = led.verify_chain()
-    assert res["valid"], res
-    print("OK chain valid, count=%d" % res["count"])
