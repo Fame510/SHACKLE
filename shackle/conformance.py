@@ -110,21 +110,25 @@ def decide(
         if rc is not None and rc >= max_repeat and last_tool == call.get("tool_name"):
             return ("DENY", "max_repeat_exceeded")
 
-    # 7. HITL always
+    # 7. opaque / untestable context — fail closed BEFORE the blanket HITL policy.
+    #    An unevaluable context is a stronger, more honest reason to pause than
+    #    "policy requires HITL for everything", and this order is unified with
+    #    v2/spec/decide.py (see fixtures/conformance_combined.json:hitl_always_beats_opaque
+    #    -> renamed opaque_beats_hitl_always).
+    if params.get("ctx") == "opaque":
+        return ("HITL", "fail_closed:opaque_context")
+
+    # 8. HITL always
     if config.get("hitl_mode") == "always":
         return ("HITL", "hitl_all_calls")
 
-    # 8. HITL budget threshold
+    # 9. HITL budget threshold
     if config.get("hitl_mode") == "on_threshold" and config.get("hitl_budget_threshold") is not None:
         initial = state.get("budget_initial_usd")
         if initial:
             frac = state.get("budget_remaining_usd", 0) / initial
             if frac <= config["hitl_budget_threshold"]:
                 return ("HITL", "budget_threshold")
-
-    # 9. opaque / untestable context
-    if params.get("ctx") == "opaque":
-        return ("HITL", "fail_closed:opaque_context")
 
     # 10. default allow
     return ("ALLOW", "within_thresholds")
