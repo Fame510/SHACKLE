@@ -5,7 +5,7 @@
 **Status:** Draft  
 **Version:** 1.0.0  
 **Authors:** Dante Bullock, Sovereign Logic  
-**License:** AGPLv3 (specification); implementations may carry their own terms  
+**License:** CC-BY-4.0 (specification — free to implement; attribution to SP/1.0 required); implementations carry their own terms (SHACKLE reference implementation is AGPL-3.0 + commercial)  
 
 ---
 
