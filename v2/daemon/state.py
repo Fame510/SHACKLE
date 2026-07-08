@@ -97,8 +97,9 @@ class StateManager:
             
         except Exception as e:
             logger.error(f"Error checking budget: {e}", exc_info=True)
-            # Fail open - allow the call if we can't check
-            return True
+            # Fail CLOSED - deny the call if we can't verify budget.
+            # A circuit breaker that fails open is not a circuit breaker.
+            return False
     
     async def update_budget(self, session_id: str, actual_cost: float):
         """Update session budget with actual cost"""
