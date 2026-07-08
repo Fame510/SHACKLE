@@ -3,8 +3,8 @@
 [![License: AGPLv3](https://img.shields.io/badge/License-AGPLv3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 
-> **The 1-Line Runtime Circuit Breaker — and the SP/1.0 Conformance Standard — for Autonomous AI Agents.**
-> Stop runaway token loops, unhandled tool cascades, and budget overruns and halt the run before the *next* call — and prove your runtime enforces the mediation contract with verifiable conformance fixtures. (Cost is read from usage after each call, so SHACKLE stops the loop, not the single call that crossed the line; see the AGPL best-effort disclaimer below.)
+> **The runtime governance layer — and the SP/1.0 conformance standard — for autonomous AI agents.**
+> SHACKLE mediates every agent tool call in real time: runaway token loops, unhandled tool cascades, and budget overruns are stopped before the *next* call fires. It is live, it runs today, and its reference implementation provably passes its own conformance suite. This is not a proposal or a prototype — it is a working standard you can run, verify, and be certified against. (Cost is read from usage after each call, so SHACKLE halts the loop, not the single call that crossed the line; see the AGPL best-effort disclaimer below.)
 
 ---
 
@@ -28,33 +28,48 @@ A runtime is **SHACKLE-conformant** iff it passes the published fixture set — 
 ---
 
 
-## 🎓 Get SHACKLE Certified
+## 📜 What SP/1.0 Actually Is
 
-**SHACKLE Certification** is how a runtime proves — not promises — that it correctly enforces the SP/1.0 mediation contract. Certification is measured against the **14 public, hash-verifiable conformance fixtures** in [`fixtures/conformance.json`](fixtures/conformance.json). No trust required: the same vectors that certify you are the ones anyone can re-run to check the claim.
+**SP/1.0 (SHACKLE Protocol 1.0) is a conformance standard for runtime mediation of autonomous AI agent actions.** In plain terms: it defines — precisely, and in a way anyone can independently verify — what it means for a system to correctly decide whether an agent is *allowed* to take its next action.
+
+Every AI agent, at every step, is about to do something: call a tool, spend budget, invoke another agent, execute a transaction. SP/1.0 governs that moment. It specifies three things no other agent framework pins down as a verifiable contract:
+
+1. **The decision surface — `ALLOW` / `DENY` / `HITL`.** Every mediated action resolves to exactly one verdict: allow it, deny it, or halt for a human. There is no fourth state and no ambiguity. Each verdict carries a deterministic, inspectable reason.
+2. **The conformance model — `Valid(τ) ⇔ Required(τ) ⊆ Supported(τ)`.** A transition is valid *if and only if* everything it requires is within what the system provably supports. This is the mathematical spine of the standard: capability is a set relationship, not a promise.
+3. **The core invariant — *history-visible ≠ runtime-executable*.** The fact that an action is recorded, resumed, or replayed is **not** evidence that it was ever authorized. A rejected or deferred action that comes back around is denied, not waved through. This single rule closes the class of failures where agents "resume" their way past their own guardrails.
+
+SP/1.0 ships as **14 hash-verifiable conformance vectors** ([`fixtures/conformance.json`](fixtures/conformance.json)) — 9 decision-core cases plus 5 human-in-the-loop transition cases (approve / reject / modify / defer-escalate / duplicate-resume) — and a stdlib-only reference implementation ([`shackle/conformance.py`](shackle/conformance.py)). **You do not take the standard on faith. You run it.** `pytest tests/test_conformance.py` executes every vector against the reference, and the reference implementation passes its own suite — verified, not asserted.
+
+---
+
+## 🎓 What It Means to Be SHACKLE Certified
+
+**SHACKLE Certification is proof — not a promise — that a runtime correctly enforces the SP/1.0 mediation contract.** It is measured entirely against the public, hash-verifiable fixtures. The same vectors that certify you are the ones anyone else can re-run to check your claim. There is no private audit, no trust-us seal, no pay-to-pass: **certification is reproduction.**
+
+For a buyer, "SHACKLE Certified" answers the question every serious acquirer, enterprise, and regulator eventually asks about an autonomous system: *"Can you prove it does what it's allowed to do — and nothing else?"* A certified runtime can. In minutes. From a clean clone.
 
 ### Certification Levels
 
-| Level | Name | Requirement |
-|-------|------|-------------|
-| **SP/1.0-Core** | Core Conformance | Passes all mediation fixtures: ALLOW / DENY / HITL verdicts match, with correct deny reasons. |
-| **SP/1.0-HITL** | Transition-Complete | Core, plus all human-in-the-loop transition fixtures (approve / reject / modify / defer-escalate / duplicate-resume). |
-| **SP/1.0-Sovereign** | Enterprise Runtime | HITL, plus daemon atomic-state, ledger tamper-evidence, and audit-export requirements (V2 runtime). |
+| Level | Name | What it guarantees |
+|-------|------|--------------------|
+| **SP/1.0-Core** | Core Conformance | The runtime resolves every mediated action to the correct `ALLOW` / `DENY` / `HITL` verdict, with the correct deny reason. The decision surface is sound. |
+| **SP/1.0-HITL** | Transition-Complete | Core, plus correct handling of every human-in-the-loop transition: approve, reject, modify, defer-escalate, and duplicate-resume. Rejected and deferred actions provably cannot execute by being replayed. |
+| **SP/1.0-Sovereign** | Enterprise Runtime | HITL, plus atomic daemon state, tamper-evident ledgering, and audit export. The full accountability layer an enterprise or acquirer can hold to account. |
 
-### How to Certify (available now)
+### How to Get Certified (open to any runtime, today)
 
-1. **Run the suite.** Execute the SP/1.0 conformance fixtures against your runtime:
-   ```bash
-   pytest v2/tests/test_conformance.py
-   ```
-2. **Capture the evidence.** SHACKLE emits a per-fixture pass/fail report with the fixture hashes it verified against. That report *is* your conformance artifact — it is independently reproducible.
-3. **Self-declare or submit for listing.** You may display an SP/1.0 conformance badge once you pass. To be listed in the public **SHACKLE Conformance Registry**, open a `certification-request` issue with your report attached (see [`.github/ISSUE_TEMPLATE`](.github/ISSUE_TEMPLATE)).
-4. **Get listed.** Verified submissions are added to the public registry with the level achieved, the SP/1.0 version, and the date.
+1. **Run the suite** against your runtime: `pytest tests/test_conformance.py` and `pytest v2/tests/test_conformance.py`.
+2. **Capture the evidence.** SHACKLE emits a per-fixture pass/fail report with the fixture hashes it verified against. That report *is* your conformance artifact — independently reproducible by anyone.
+3. **Submit for listing.** Open a [certification request](https://github.com/Fame510/SHACKLE/issues/new?template=certification_request.yml) with your report and a public, reproducible evidence link. An automated check re-runs the public fixtures; a maintainer verifies before listing.
+4. **Get listed.** Verified runtimes appear in the public **[SHACKLE Conformance Registry](https://fame510.github.io/SHACKLE/registry.html)** with the level achieved, SP/1.0 version, and date — and may display the SP/1.0 Certified badge.
 
-### Why it matters
+### An open standard, an open door
 
-A certification is only worth what it can withstand. SP/1.0 is deliberately built to survive adversarial scrutiny: every fixture is public, every verdict is deterministic, every hash is reproducible. If a runtime claims conformance, you can check it yourself in minutes — that is the entire point.
+SP/1.0 is a **neutral, public standard**. Any agent runtime — including competing frameworks and competing safety products — is invited to test against it and be listed. The fixtures are public. The verdicts are deterministic. The registry is open. We hold our own reference implementation to exactly the bar we ask of everyone else, and we publish our fixtures so the claim is checkable.
 
-> **Certify your agents.** → [Start with the conformance fixtures](fixtures/conformance.json)
+That is the entire philosophy: **a standard is only worth what it can withstand.** If a runtime conforms, the registry proves it. If it doesn't, the fixtures show exactly where. Either way, the measure is public and the same for everyone.
+
+> **Certify your agents.** → [Run the fixtures](fixtures/conformance.json) · [Get listed](https://github.com/Fame510/SHACKLE/issues/new?template=certification_request.yml) · [View the registry](https://fame510.github.io/SHACKLE/registry.html)
 
 ## Integrations (LiteLLM + AutoGen)
 
