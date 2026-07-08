@@ -104,8 +104,8 @@
       "expected_reason": "policy_violation:duplicate_nonce"
     },
     {
-      "name": "hitl_always_beats_opaque",
-      "note": "When hitl_mode=always AND the params are opaque, the authority (shackle/conformance.py) reports hitl_all_calls before the fail-closed opaque reason. Pins that precedence.",
+      "name": "opaque_beats_hitl_always",
+      "note": "RULING (Dante, fail-closed): an opaque/unevaluable context means the guard could not evaluate the call at all — a stronger safety signal than a blanket HITL policy — so fail_closed:opaque_context is surfaced BEFORE hitl_all_calls. Both cores (shackle/conformance.py and v2/spec/decide.py) check opaque before hitl_always; this vector pins that.",
       "config": {
         "budget_usd": 1,
         "hitl_mode": "always"
@@ -125,7 +125,7 @@
         "nonce": 3
       },
       "expected_verdict": "HITL",
-      "expected_reason": "hitl_all_calls"
+      "expected_reason": "fail_closed:opaque_context"
     },
     {
       "name": "pending_approve_beats_budget_exhausted",
