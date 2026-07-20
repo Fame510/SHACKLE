@@ -50,6 +50,7 @@ def decide(
          (specialized: duplicate resume vs terminal    -> DENY)
       4. HITL transition contract (pending_transition) -> ALLOW/DENY/HITL
       5. budget exhausted                              -> DENY
+      5b. budget overrun (this call would push remaining negative) -> DENY
       6. max repeat exceeded                           -> DENY
       7. HITL mode 'always'                            -> HITL
       8. HITL budget threshold                         -> HITL
@@ -100,6 +101,21 @@ def decide(
     remaining = state.get("budget_remaining_usd")
     if remaining is not None and remaining <= 0 and budget > 0:
         return ("DENY", "budget_exhausted")
+
+    # 5b. budget overrun: this single call's estimated cost would push
+    # remaining negative. Distinct from budget_exhausted: there is budget
+    # left, but not enough for this call. This is the contract that pins
+    # "fail closed under concurrency" -- if two threads each see remaining
+    # > 0 and each try a call whose cost > remaining, the first to land
+    # must NOT silently drain the budget past zero on the second. The
+    # runtime MUST consult decide() with the pre-call remaining and the
+    # call's estimated_cost_usd so this check fires BEFORE mutation.
+    estimated = call.get("estimated_cost_usd", 0) or 0
+    if (remaining is not None
+            and budget > 0
+            and estimated > 0
+            and (remaining - estimated) < 0):
+        return ("DENY", "budget_overrun")
 
     # 6. max repeat exceeded
     max_repeat = config.get("max_repeat_calls")

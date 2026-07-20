@@ -94,8 +94,12 @@ def test_b_budget_exceeded_on_record():
     g = ShackleEngineGuardrail(budget=0.0001, max_repeat_calls=99, timeout_seconds=1000)
     g.check(_req(content="spend"))
     with pytest.raises(ShackleBlocked) as e:
-        g.record(_req(), _usage(1000000, 1000000))  # huge spend -> BUDGET_EXCEEDED
-    assert e.value.reason == "BUDGET_EXCEEDED"
+        g.record(_req(), _usage(1000000, 1000000))  # huge spend -> BUDGET_OVERRUN
+    # call cost (12.50) vastly exceeds the budget (0.0001), so decide()
+    # catches it as a BUDGET_OVERRUN (the call would push remaining
+    # negative) BEFORE any state is mutated -- strictly better than the
+    # pre-fix behavior which would have mutated then raised BUDGET_EXCEEDED.
+    assert e.value.reason == "BUDGET_OVERRUN"
 
 
 def test_b_distinct_calls_do_not_trip():
