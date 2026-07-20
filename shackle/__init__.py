@@ -5,4 +5,4 @@ __all__ = ["Guard", "ShackleInterrupt", "TriggerEngine", "ExecutionState",
     "decide",
     "canonical_hash",
 ]
-__version__ = "0.1.0"
+__version__ = "1.0.0"
