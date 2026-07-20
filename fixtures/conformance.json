@@ -400,6 +400,31 @@
           25
         ]
       }
+    },
+    {
+      "name": "concurrent_budget_overrun",
+      "config": {
+        "budget_usd": 1
+      },
+      "state": {
+        "budget_initial_usd": 1,
+        "budget_remaining_usd": 0.10,
+        "circuit_tripped": false,
+        "seen_nonces": []
+      },
+      "call": {
+        "tool_name": "purchase",
+        "params": {
+          "amount_usd": 5,
+          "tool": "purchase"
+        },
+        "estimated_cost_usd": 0.15,
+        "nonce": 30
+      },
+      "canonical_hash": "c97a9cc83605d95347fb7766e9e605295c980f16ba19d860e4395c5dde312227",
+      "expected_verdict": "DENY",
+      "expected_reason": "budget_overrun",
+      "conformance_note": "CONCURRENCY CONTRACT: a single call whose estimated cost exceeds the PRE-call remaining budget MUST be denied with budget_overrun, even when remaining > 0 (i.e. the budget is not yet exhausted, but this call would push it negative). This is the spec-level guarantee that prevents the runtime from drifting past budget under concurrent calls: implementations MUST consult decide() with the pre-call remaining and the call's estimated_cost_usd, and honor the DENY verdict BEFORE mutating state. Without this check, a runtime that only verifies `total_cost >= budget` after a racy read-modify-write can silently let combined spend exceed the limit. Companion runtime test: tests/test_core.py::TestTriggerEngineLLM::test_concurrent_budget_no_overrun."
     }
   ],
   "transition_contract": {

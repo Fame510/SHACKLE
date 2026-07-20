@@ -41,6 +41,7 @@ class Verdict(Enum):
 class DenyReason(Enum):
     UNSPECIFIED = "unspecified"
     BUDGET_EXHAUSTED = "budget_exhausted"
+    BUDGET_OVERRUN = "budget_overrun"
     MAX_REPEAT_EXCEEDED = "max_repeat_exceeded"
     CIRCUIT_OPEN = "circuit_open"
     WINDOW_EXCEEDED = "window_exceeded"
@@ -284,7 +285,12 @@ def decide(
             if config.hitl_mode in (HitlMode.ON_DENY, HitlMode.ALWAYS):
                 return Decision(Verdict.HITL,
                                 human_readable=f"Cost ${call.estimated_cost_usd:.4f} > remaining ${state.budget_remaining_usd:.4f}")
-            return Decision(Verdict.DENY, DenyReason.BUDGET_EXHAUSTED,
+            # remaining is > 0 here (the <=0 case returned budget_exhausted
+            # above), so a call whose estimated cost exceeds remaining is an
+            # OVERRUN, not exhaustion. Distinct reason keeps this consistent
+            # with shackle/conformance.py and the concurrent_budget_overrun
+            # fixture (fail closed BEFORE the budget is driven negative).
+            return Decision(Verdict.DENY, DenyReason.BUDGET_OVERRUN,
                             f"Cost ${call.estimated_cost_usd:.4f} > remaining ${state.budget_remaining_usd:.4f}")
 
     # Layer 4: Repeat call guard
