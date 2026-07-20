@@ -36,15 +36,15 @@ Core invariant: **history-visible ≠ runtime-executable.** Each of the five cas
 as a hash-verifiable fixture under `fixtures/conformance.json` — added 2026-07-05 as
 `hitl_transition_approve`, `hitl_transition_reject`, `hitl_transition_modify`,
 `hitl_transition_defer_escalate`, and `hitl_transition_duplicate_resume`. Every fixture
-carries a canonical SHA-256 hash over its `call.params`; the file now holds 14 vectors total
-(9 decision-core + 5 transition).
+carries a canonical SHA-256 hash over its `call.params`; the file now holds 15 vectors total
+(10 decision-core + 5 transition).
 
 ## 4. Claiming conformance
 A runtime is **SHACKLE-conformant** iff it passes the published fixture set at
 `Fame510/SHACKLE/fixtures`. Conformance is provable by **reproduction, not assertion**.
 
 **Layer scope:** the conformance-verified layer is this specification plus
-`fixtures/conformance.json` (14 vectors) and the reference `shackle/conformance.py::decide()`.
+`fixtures/conformance.json` (15 vectors) and the reference `shackle/conformance.py::decide()`.
 The shipped `shackle/core.py` `@Guard` runtime calls that same `decide()` directly — it builds
 the `(config, state, call)` contract from its live `TriggerEngine`/`ExecutionState` and consults
 `decide()` on every evaluated tool call and every LLM call, recording the verdict on

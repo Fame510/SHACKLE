@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SHACKLE — Runtime Circuit Breaker & SP/1.0 Conformance Standard for Autonomous AI Agents</title>
-<meta name="description" content="SHACKLE: the 1-Line Runtime Circuit Breaker and the SP/1.0 Conformance Standard for Autonomous AI Agents. Stop runaway token loops — and prove your runtime enforces the mediation contract with 14 verifiable conformance fixtures. Built by Dante Bullock, Sovereign Logic.">
+<meta name="description" content="SHACKLE: the 1-Line Runtime Circuit Breaker and the SP/1.0 Conformance Standard for Autonomous AI Agents. Stop runaway token loops — and prove your runtime enforces the mediation contract with 15 verifiable conformance fixtures. Built by Dante Bullock, Sovereign Logic.">
 <style>
   /* âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
      SHACKLE â BRUTALIST DEFENSE-GRADE INDUSTRIAL
@@ -846,7 +846,7 @@
       <br>
       <span style="color:#fff;">safe_kickoff</span>()<br>
       <br>
-      <span class="term-prompt">$ </span><span class="term-command">pip install shackle && python agent.py</span><br>
+      <span class="term-prompt">$ </span><span class="term-command">pip install git+https://github.com/Fame510/SHACKLE.git && python agent.py</span><br>
       <span class="term-output">â SHACKLE active. Guards: budget=$0.25, repeat=3x, timeout=180s</span>
     </div>
   </div>
@@ -1043,7 +1043,7 @@
         <li>Terminal-based HITL console</li>
         <li>Memory-only state (lost on crash)</li>
         <li>Perfect for development & debugging</li>
-        <li>pip install shackle</li>
+        <li>pip install git+https://github.com/Fame510/SHACKLE.git</li>
         <li>Free â AGPLv3</li>
       </ul>
       <a href="https://github.com/Fame510/SHACKLE" class="btn btn-ghost" style="margin-top:16px;">View on GitHub â</a>
@@ -1086,8 +1086,8 @@
           capability is supported.</p>
         </div>
         <div class="standard-card">
-          <h4>14 Verifiable Fixtures</h4>
-          <p>9 decision-core + 5 HITL transition cases (approve / reject / modify / defer-escalate / duplicate-resume),
+          <h4>15 Verifiable Fixtures</h4>
+          <p>10 decision-core + 5 HITL transition cases (approve / reject / modify / defer-escalate / duplicate-resume),
           each a hash-verifiable vector.</p>
         </div>
         <div class="standard-card">
@@ -1103,9 +1103,9 @@
         the published fixtures &mdash; provable by reproduction, not assertion.
       </p>
       <p class="section-intro" style="margin-top:1rem; font-size:.92rem; opacity:.8;">
-        <strong>Honest scope:</strong> the conformance layer (spec + 14 fixtures + reference <code>decide()</code>) is the
+        <strong>Honest scope:</strong> the conformance layer (spec + 15 fixtures + reference <code>decide()</code>) is the
         verified standard. The <code>@Guard</code> runtime is the reference integration &mdash; it uses the same canonical-hashing
-        discipline and is tested on Python 3.10&ndash;3.12, with a literal runtime&rarr;<code>decide()</code> wiring on the roadmap.
+        discipline and is tested on Python 3.10&ndash;3.12, and consults the same reference <code>decide()</code> on every evaluated tool call and every LLM call &mdash; one decision surface, not two implementations that happen to agree.
       </p>
       <div style="text-align:center; margin-top:2rem;">
         <a href="https://github.com/Fame510/SHACKLE/blob/master/CONFORMANCE.md" class="btn btn-primary">Read the SP/1.0 Spec &rarr;</a>
@@ -1121,7 +1121,7 @@
       <p class="section-intro">
         A certification is only worth what it can withstand. <strong>SHACKLE Certification</strong> proves &mdash; not
         promises &mdash; that a runtime correctly enforces the SP/1.0 mediation contract, measured against
-        <strong>14 public, hash-verifiable conformance fixtures</strong>. The same vectors that certify you are the ones
+        <strong>15 public, hash-verifiable conformance fixtures</strong>. The same vectors that certify you are the ones
         anyone can re-run to check the claim. No trust required.
       </p>
 
@@ -1165,26 +1165,34 @@
   </section>
 
   <section class="section section-dark">
-  <span class="section-label">// Testimonials</span>
-  <h2>What Developers Say.</h2>
+  <span class="section-label">// Evidence</span>
+  <h2>Don't Trust It. Re-Run It.</h2>
+  <p style="color:var(--gray);max-width:720px;">
+    SHACKLE's claims are built to be checked, not believed. Every one below is independently
+    verifiable from a clean clone &mdash; no quotes required.
+  </p>
 
-  <div class="testimonial">
-    <p class="quote">
-      "SHACKLE's litellm hook is brilliant for teams running polyglot stacks (CrewAI + AutoGen + LangGraph).
-      You get one unified guardrail across your whole topology."
-    </p>
-    <p class="attribution">
-      â Creator of <strong>TokenCircuit</strong>, competing LangGraph solution
-    </p>
-  </div>
-
-  <div class="testimonial">
-    <p class="quote">
-      "The error-amplification logic (catching 401/500s on the 2nd attempt) is incredibly sharp."
-    </p>
-    <p class="attribution">
-      â Developer on <strong>LangGraph</strong> issue tracker
-    </p>
+  <div class="standard-grid" style="margin-top:28px;">
+    <div class="standard-card">
+      <h4>Independently reproduced</h4>
+      <p>An independent developer (<strong>@nutstrut</strong>) reproduced <em>all</em> published
+      SP/1.0 fixture hashes from scratch and posted a runnable composition against the set &mdash;
+      <a href="https://github.com/crewAIInc/crewAI/issues/6025#issuecomment-4911510831" style="color:var(--orange);">public record</a>.
+      Not a testimonial &mdash; a reproduction.</p>
+    </div>
+    <div class="standard-card">
+      <h4>Reproducible conformance</h4>
+      <p>15 public, hash-verifiable fixtures behind a green CI pipeline. Clone the repo, run
+      <code>pytest tests/test_conformance.py</code>, and get the same verdicts &mdash;
+      <a href="https://github.com/Fame510/SHACKLE/blob/master/fixtures/conformance.json" style="color:var(--orange);">the fixtures are the proof</a>.</p>
+    </div>
+    <div class="standard-card">
+      <h4>The failure is documented</h4>
+      <p>The $106,000 runaway-agent incident is a public report
+      (<a href="https://github.com/microsoft/autogen/issues/7770" style="color:var(--orange);">microsoft/autogen#7770</a>),
+      not a hypothetical. SHACKLE's error-cascade breaker trips a repeated error-bearing call
+      (401/403/500/timeout) on its <strong>2nd</strong> attempt instead of the 3rd &mdash; verified in the suite.</p>
+    </div>
   </div>
 
   <div class="partner-banner">
