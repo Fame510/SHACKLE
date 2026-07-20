@@ -1,8 +1,8 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="shackle",
-    version="0.1.0",
+    name="pyshackle",
+    version="1.0.0",
     description="A lightweight, framework-agnostic runtime circuit breaker for LLM agents.",
     long_description=open("README.md").read(),
     long_description_content_type="text/markdown",
