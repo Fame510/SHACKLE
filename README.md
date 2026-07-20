@@ -1,4 +1,4 @@
-# <img src="logo.png" width="48" height="48" align="left" alt="SHACKLE logo" style="margin-right: 12px;"> Ã¢ÂÂÃ¯Â¸Â SHACKLE
+# <img src="logo.png" width="48" height="48" align="left" alt="SHACKLE logo" style="margin-right: 12px;"> ⛓️ SHACKLE
 
 [![License: AGPLv3](https://img.shields.io/badge/License-AGPLv3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
@@ -92,23 +92,23 @@ silent infinite loops.
 
 Rather than guessing what the agent ecosystem needed, Sovereign Logic used
 real-time web scraping and community sentiment mining to audit the issue
-trackers of CrewAI, AutoGen, and LangGraph Ã¢ÂÂ mapping the exact systemic
+trackers of CrewAI, AutoGen, and LangGraph — mapping the exact systemic
 failures affecting developers in production, then building the drop-in
 circuit breaker to fix them.
 
-This is infrastructure built by a developer, for developers Ã¢ÂÂ sovereign,
+This is infrastructure built by a developer, for developers — sovereign,
 lean, and zero-bloat.
 
 ---
 
-## Ã°ÂÂÂ¯ When to Use SHACKLE
+## 🎯 When to Use SHACKLE
 
 **SHACKLE is purpose-built for:**
-- **Local development and debugging** Ã¢ÂÂ Interactive HITL console gives you real-time control
-- **CLI agents and supervised workflows** Ã¢ÂÂ Resume/Skip/Abort when loops are detected
-- **Cross-framework coverage** Ã¢ÂÂ One decorator works across CrewAI, LangGraph, and AutoGen
-- **Budget enforcement** Ã¢ÂÂ Client-side token tracking prevents runaway costs
-- **Iterative testing** Ã¢ÂÂ Catch loops early in the development cycle
+- **Local development and debugging** — Interactive HITL console gives you real-time control
+- **CLI agents and supervised workflows** — Resume/Skip/Abort when loops are detected
+- **Cross-framework coverage** — One decorator works across CrewAI, LangGraph, and AutoGen
+- **Budget enforcement** — Client-side token tracking prevents runaway costs
+- **Iterative testing** — Catch loops early in the development cycle
 
 **For headless production APIs** (serverless functions, FastAPI endpoints, background workers where blocking for human input isn't an option), consider framework-native solutions like [TokenCircuit](https://github.com/) for automated LangGraph overrides.
 
@@ -116,13 +116,13 @@ SHACKLE and production-oriented tools solve complementary problems: use SHACKLE 
 
 ---
 
-## Ã¢ÂÂ¡ The Problem
+## ⚡ The Problem
 
-AI agents are highly capable, but their error-handling is fundamentally broken. When an agent hits an unhandled tool error (401 Unauthorized, changed API payload, dead endpoint), it rarely self-corrects. Instead, it enters a **"Loop of Death"** Ã¢ÂÂ retrying the exact same tool with the exact same input, burning your context window and running up massive API bills in minutes.
+AI agents are highly capable, but their error-handling is fundamentally broken. When an agent hits an unhandled tool error (401 Unauthorized, changed API payload, dead endpoint), it rarely self-corrects. Instead, it enters a **"Loop of Death"** — retrying the exact same tool with the exact same input, burning your context window and running up massive API bills in minutes.
 
 Frameworks like **CrewAI**, **AutoGen**, and **LangGraph** lack native, framework-agnostic spending guardrails or deterministic loop breakers.
 
-## Ã°ÂÂÂ¡Ã¯Â¸Â The Solution
+## 🛡️ The Solution
 
 SHACKLE is a lightweight, zero-dependency governance layer that sits inside your runtime via dynamic Python shims. It intercepts **LLM calls** and **tool executions** client-side, monitoring execution state deterministically.
 
@@ -130,21 +130,20 @@ When an agent breaches your boundaries, SHACKLE trips the circuit breaker, halts
 
 ### Key Features
 
-- **1-Line Install** Ã¢ÂÂ no refactoring your agent topology
-- **Loop of Death Prevention** Ã¢ÂÂ detects identical sequential tool calls and error cascades
-- **Budget Enforcement** Ã¢ÂÂ real-time token tracking against a client-side pricing table
-- **Execution Timeouts** Ã¢ÂÂ prevents hung threads on dead APIs
-- **HITL Console** Ã¢ÂÂ interactive terminal with Resume / Skip / Abort options
-- **100% Client-Side** Ã¢ÂÂ no telemetry, no phone-home, no hidden SaaS
+- **1-Line Install** — no refactoring your agent topology
+- **Loop of Death Prevention** — detects identical sequential tool calls and error cascades
+- **Budget Enforcement** — real-time token tracking against a client-side pricing table
+- **Execution Timeouts** — prevents hung threads on dead APIs
+- **HITL Console** — interactive terminal with Resume / Skip / Abort options
+- **100% Client-Side** — no telemetry, no phone-home, no hidden SaaS
 
 ---
 
-## Ã°ÂÂÂ Quick Start
+## 🚀 Quick Start
 
 ### 1. Install
 
-> **Note:** the PyPI release is being published. Until `pip install shackle`
-> is live, install directly from source (works today):
+> **Note:** Shackle is published on PyPI as the `pyshackle` package (the import name stays `shackle`).
 
 ```bash
 # From source (available now)
@@ -152,8 +151,8 @@ git clone https://github.com/Fame510/SHACKLE.git
 cd SHACKLE
 pip install -e .
 
-# Or, once published to PyPI:
-pip install shackle
+# From PyPI:
+pip install pyshackle
 ```
 
 ### 2. Guard Your Workflow
@@ -173,11 +172,11 @@ def run():
 run()
 ```
 
-That's it. SHACKLE dynamically hooks the underlying interpreters Ã¢ÂÂ no CrewAI source changes needed.
+That's it. SHACKLE dynamically hooks the underlying interpreters — no CrewAI source changes needed.
 
 ---
 
-## Ã¢ÂÂÃ¯Â¸Â The Four Circuit Breakers
+## ⚙️ The Four Circuit Breakers
 
 | Trigger | Condition | Default | What Happens |
 |---|---|---|---|
@@ -188,62 +187,62 @@ That's it. SHACKLE dynamically hooks the underlying interpreters Ã¢ÂÂ no
 
 ### Error Loop Amplification
 
-SHACKLE **amplifies sensitivity** when tool inputs contain error signals (`401`, `500`, `timeout`, `unauthorized`, etc.) Ã¢ÂÂ catching the "I'll just try again" loop before the agent burns tokens on a permission error it can't fix.
+SHACKLE **amplifies sensitivity** when tool inputs contain error signals (`401`, `500`, `timeout`, `unauthorized`, etc.) — catching the "I'll just try again" loop before the agent burns tokens on a permission error it can't fix.
 
 ---
 
-## Ã°ÂÂÂ Ã¯Â¸Â The HITL Console
+## 🛠️ The HITL Console
 
 When a breaker trips, SHACKLE renders an interactive terminal:
 
 ```
-Ã¢ÂÂÃ¯Â¸Â SHACKLE CIRCUIT BREAKER: REPETITIVE_TOOL_CALL
+⛓️ SHACKLE CIRCUIT BREAKER: REPETITIVE_TOOL_CALL
 
 Agent:         ResearchAgent
 Tool:          web_search
 Input:         {"query": "latest AI news", "error": "401 Unauthorized"}
 Call Count:    3x
-Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ Session Stats Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+━━━ Session Stats ━━━
 Tokens:        In: 8,400 | Out: 1,200
 Session Cost:  $0.02850
 Time Running:  47.2s
 
 Options:
-  [R] Resume/Reset Ã¢ÂÂ clear history, continue execution
-  [S] Skip Ã¢ÂÂ return dummy output, attempt context flush
-  [A] Abort Ã¢ÂÂ hard terminate the current run
+  [R] Resume/Reset — clear history, continue execution
+  [S] Skip — return dummy output, attempt context flush
+  [A] Abort — hard terminate the current run
 
 Select action (R/S/A):
 ```
 
 ---
 
-## Ã°ÂÂÂ Works With
+## 🔌 Works With
 
 | Framework | Support | Notes |
 |---|---|---|
-| **CrewAI** | Ã¢ÂÂ Full | litellm hook + BaseTool hook + Agent.execute_task (experimental) |
+| **CrewAI** | ✅ Full | litellm hook + BaseTool hook + Agent.execute_task (experimental) |
 | **LangChain / LangGraph** | Sync + async | litellm (completion/acompletion) + BaseTool (run/arun) hooks cover sync and async paths |
-| **AutoGen** | Ã¢ÂÂ Full | litellm interception catches all LLM calls |
-| **Smolagents** | Ã°ÂÂ§Âª Experimental | Manager Agent reasoning loop detection active |
+| **AutoGen** | ✅ Full | litellm interception catches all LLM calls |
+| **Smolagents** | 🧪 Experimental | Manager Agent reasoning loop detection active |
 
 ---
 
-## Ã°ÂÂÂ V2: Enterprise Runtime Sovereignty Layer (Optional)
+## 🚀 V2: Enterprise Runtime Sovereignty Layer (Optional)
 
 For production deployments requiring **distributed state**, **compliance audit logs**, or **remote agent control**, see **[v2/README.md](v2/README.md)**.
 
 **V2 adds:**
-- Ã¢ÂÂ Distributed budget tracking (across serverless functions, Lambda, K8s)
-- Ã¢ÂÂ Postgres audit logs (cryptographically signed, SOC2-ready)
-- Ã¢ÂÂ Remote HITL control (manage headless agents from mobile/web)
-- Ã¢ÂÂ Commercial licensing (for closed-source products)
+- ✅ Distributed budget tracking (across serverless functions, Lambda, K8s)
+- ✅ Postgres audit logs (cryptographically signed, SOC2-ready)
+- ✅ Remote HITL control (manage headless agents from mobile/web)
+- ✅ Commercial licensing (for closed-source products)
 
 **V1 (this)** is always free and perfect for local development. **V2** is an optional upgrade for enterprise production use.
 
 ---
 
-## Ã°ÂÂÂ® Roadmap
+## 🔮 Roadmap
 
 - [x] Budget enforcement (client-side pricing table)
 - [x] Loop of Death detection (repeat tool calls + error amplification)
@@ -258,21 +257,21 @@ For production deployments requiring **distributed state**, **compliance audit l
 
 ---
 
-## Ã°ÂÂÂ° Commercial Licensing
+## 💰 Commercial Licensing
 
-SHACKLE is open-source under **AGPLv3** Ã¢ÂÂ free for individual developers,
+SHACKLE is open-source under **AGPLv3** — free for individual developers,
 hobbyists, and open-source projects. If you're using SHACKLE in a closed-source
 commercial product, SaaS platform, or enterprise deployment, the AGPLv3
 requires you to open-source your entire application. Most companies don't
-want to do that Ã¢ÂÂ so they purchase a commercial license instead.
+want to do that — so they purchase a commercial license instead.
 
 ### What a Commercial License Gets You
 
 | | AGPLv3 (Free) | Commercial License |
 |---|---|---|
-| Use in closed-source products | Ã¢ÂÂ | Ã¢ÂÂ |
-| White-label / rebrand | Ã¢ÂÂ | Ã¢ÂÂ |
-| No copyleft obligations | Ã¢ÂÂ | Ã¢ÂÂ |
+| Use in closed-source products | ❌ | ✅ |
+| White-label / rebrand | ❌ | ✅ |
+| No copyleft obligations | ❌ | ✅ |
 | Priority support | Community | SLA-backed |
 | Custom integration assistance | Self-serve | Architecture audit |
 
@@ -285,11 +284,11 @@ Commercial licensing is available for:
 
 Pricing is customized based on your needs, team size, and deployment scale.
 
-Ã°ÂÂÂ§ **Contact for pricing:** docspoc101@gmail.com
+📧 **Contact for pricing:** docspoc101@gmail.com
 
 ---
 
-## Ã¢ÂÂ Ã¯Â¸Â Disclaimer of Liability
+## ⚠️ Disclaimer of Liability
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
@@ -304,7 +303,7 @@ NON-DETERMINISTIC. SHACKLE IS A BEST-EFFORT CIRCUIT BREAKER AND DOES NOT
 GUARANTEE PREVENTING ALL API SPEND OVERRUNS. YOU REMAIN SOLELY RESPONSIBLE FOR
 MONITORING YOUR OWN API LIMITS AND USAGE BILLS.
 
-## Ã°ÂÂÂ License
+## 📄 License
 
 Copyright (C) 2026 Dante Bullock, Sovereign Logic.
 
@@ -316,9 +315,9 @@ See [LICENSE](LICENSE) for full terms.
 
 ---
 
-## Ã°ÂÂÂ¤ Creator
+## 👤 Creator
 
-**Dante Bullock** Ã¢ÂÂ 52-year-old self-taught systems architect from Oakland, California.
+**Dante Bullock** — 52-year-old self-taught systems architect from Oakland, California.
 Founder of Sovereign Logic. Built SHACKLE out of raw necessity after watching
 autonomous agents burn thousands in silent API loops with no native circuit
 breaker in sight.
@@ -331,11 +330,11 @@ Contact: docspoc101@gmail.com
 
 ---
 
-## Ã°ÂÂ¤Â Contributing
+## 🤝 Contributing
 
 ### Pricing Table Updates
 
-As model providers update pricing, submit PRs to `shackle/core.py` Ã¢ÂÂ `MODEL_PRICING`. Contributors who submit verified pricing updates get credited in release notes.
+As model providers update pricing, submit PRs to `shackle/core.py` → `MODEL_PRICING`. Contributors who submit verified pricing updates get credited in release notes.
 
 ### Adding Framework Hooks
 
@@ -347,7 +346,7 @@ SHACKLE's architecture supports pluggable runtime hooks. To add support for a ne
 
 ---
 
-## ð¼ Commercial Support (optional)
+## 💼 Commercial Support (optional)
 
 SHACKLE is free and open source (AGPLv3). If you want hands-on help deploying it
 in your stack, paid implementation and architecture-audit support is available.
@@ -355,10 +354,10 @@ in your stack, paid implementation and architecture-audit support is available.
 **I fix this. Today.**
 
 If your CrewAI / LangGraph / AutoGen agents are burning money in loops and you
-need a solution deployed by someone who understands the internals Ã¢ÂÂ not a generic
+need a solution deployed by someone who understands the internals — not a generic
 consultant who'll Google "what is CrewAI" on your dime:
 
-Ã°ÂÂÂ§ **docspoc101@gmail.com**
+📧 **docspoc101@gmail.com**
 
 ### Production & Implementation Inquiries
 
