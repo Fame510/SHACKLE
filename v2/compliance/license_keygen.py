@@ -6,7 +6,10 @@ Generates cryptographically secure enterprise licenses with validation checksums
 
 import hashlib
 import hmac
+import logging
+import os
 import secrets
+import sys
 import uuid
 import json
 from datetime import datetime, timedelta
@@ -14,6 +17,8 @@ from typing import Optional, Dict, Any
 from cryptography.hazmat.primitives.asymmetric import ed25519
 from cryptography.hazmat.primitives import serialization
 import base64
+
+logger = logging.getLogger(__name__)
 
 class LicenseGenerator:
     """Generate SHACKLE-ENT licenses with crypto validation"""
@@ -27,11 +32,20 @@ class LicenseGenerator:
         """
         if master_secret:
             self.master_secret = master_secret.encode()
+            self.generated_new = False
         else:
-            # Generate new master secret if none provided
+            # Generate a new master secret if none provided.
+            # SECURITY: never print the secret here. Emitting it to stdout leaks
+            # it into CI logs, container stdout, shell scrollback, and log
+            # aggregators. The CLI persists it to a 0600 file (or shows it only
+            # under an explicit --show-secret). Library callers read it via
+            # export_master_secret().
             self.master_secret = secrets.token_hex(32).encode()
-            print(f"⚠️  Generated new master secret: {self.master_secret.decode()}")
-            print("⚠️  SAVE THIS SECRET - Required for license validation!")
+            self.generated_new = True
+            logger.warning(
+                "Generated a new master secret. Capture it from the CLI secret "
+                "file (or --show-secret); it is required for license validation."
+            )
         
         # Generate Ed25519 signing key pair
         self.private_key = ed25519.Ed25519PrivateKey.generate()
@@ -194,7 +208,18 @@ def main():
     )
     parser.add_argument(
         "--output",
-        help="Output JSON file path"
+        help="Output JSON file path (license bundle only; never contains the master secret)"
+    )
+    parser.add_argument(
+        "--secret-out",
+        help="Path to write the master secret to (created mode 0600). "
+             "Defaults to <output>.secret, or shackle-master-secret-<license_id>.key."
+    )
+    parser.add_argument(
+        "--show-secret",
+        action="store_true",
+        help="Print the master secret to stderr instead of writing it to a file. "
+             "Off by default so the secret never lands in stdout/logs."
     )
     
     args = parser.parse_args()
@@ -212,10 +237,10 @@ def main():
         node_binding=args.node_binding
     )
     
-    # Output
+    # Output — the license bundle NEVER contains the master secret. The secret
+    # is a separate credential and is handled out-of-band below.
     output = {
         "license": license_data,
-        "master_secret": generator.export_master_secret(),
         "public_key_pem": generator.export_public_key()
     }
     
@@ -226,7 +251,27 @@ def main():
     else:
         print(json.dumps(output, indent=2))
     
-    # Pretty print key
+    # Master secret handling — never on stdout. Show on stderr only when the
+    # caller explicitly opts in; otherwise persist to a 0600 file. A secret that
+    # was supplied by the caller is neither re-shown nor re-persisted.
+    secret = generator.export_master_secret()
+    if args.show_secret:
+        print(f"MASTER_SECRET={secret}", file=sys.stderr)
+    elif generator.generated_new or args.secret_out:
+        secret_path = args.secret_out or (
+            f"{args.output}.secret" if args.output
+            else f"shackle-master-secret-{license_data['license_id']}.key"
+        )
+        fd = os.open(secret_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w") as sf:
+            sf.write(secret + "\n")
+        print(
+            f"🔐 Master secret written to {secret_path} (mode 0600). Move it into "
+            f"your secrets manager; it is required for license validation.",
+            file=sys.stderr,
+        )
+    
+    # Pretty print key (the license key is not a secret)
     print(f"\n🔑 LICENSE KEY:\n{license_data['license_key']}\n")
 
 

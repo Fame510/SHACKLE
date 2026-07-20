@@ -54,9 +54,16 @@ python license_keygen.py "Acme Corporation" \
   --max-nodes 10 \
   --output acme_license.json
 
-# Output:
+# stdout (safe to log): the license bundle + license key. NEVER the secret.
 # 🔑 LICENSE KEY:
 # SHACKLE-ENT-a7f3c8e2-4b9d-4c1a-8e5f-2d6c9b3a7f1c-3a8f7e2c1b5d9a4f
+#
+# The master secret is written to a separate 0600 file (here:
+# acme_license.json.secret) and its path is printed to stderr. It is required
+# for license validation — move it into your secrets manager and do not commit
+# it. Use --secret-out PATH to choose the location, or --show-secret to print
+# it to stderr instead of writing a file. The secret is never emitted to stdout
+# and never included in the license JSON.
 ```
 
 ### 2. Start License Server
@@ -66,7 +73,7 @@ python license_keygen.py "Acme Corporation" \
 pip install fastapi uvicorn sqlalchemy cryptography pydantic
 
 # Start server with master secret
-export MASTER_SECRET="your-secret-from-license-file"
+export MASTER_SECRET="$(cat acme_license.json.secret)"   # the 0600 secret file from keygen
 python license_server.py $MASTER_SECRET
 
 # Server running at http://localhost:8000
