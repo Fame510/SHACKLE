@@ -14,14 +14,14 @@ SHACKLE is not only a runtime circuit breaker — it is the **authored, verifiab
 
 - **Decision surface:** `ALLOW` / `DENY` / `HITL`
 - **Conformance model:** `Valid(τ) ⇔ Required(τ) ⊆ Supported(τ)`
-- **14 hash-verifiable conformance vectors** in [`fixtures/conformance.json`](fixtures/conformance.json) — 9 decision-core + 5 HITL transition cases (approve / reject / modify / defer-escalate / duplicate-resume)
+- **15 hash-verifiable conformance vectors** in [`fixtures/conformance.json`](fixtures/conformance.json) — 10 decision-core + 5 HITL transition cases (approve / reject / modify / defer-escalate / duplicate-resume)
 - **Pure reference implementation:** [`shackle/conformance.py`](shackle/conformance.py) — a stdlib-only `decide(config, state, call) -> (verdict, reason)`
 - **Executable proof:** `pytest tests/test_conformance.py` runs every vector against the reference
 - **Core invariant:** *history-visible ≠ runtime-executable* — a record that an action happened is not proof the transition was supported
 
 A runtime is **SHACKLE-conformant** iff it passes the published fixture set — provable by **reproduction, not assertion**. See **[CONFORMANCE.md](CONFORMANCE.md)** for the full specification and how to claim conformance. The fixture hashes have been independently reproduced by third parties.
 
-> **Which layer is which:** [`shackle/conformance.py`](shackle/conformance.py) + [`fixtures/conformance.json`](fixtures/conformance.json) are the **conformance-verified layer** — the authored spec and its 14 hash-verifiable vectors, with a reference `decide()`. [`shackle/core.py`](shackle/core.py) is the **shipped runtime integration** (the `@Guard` decorator): it maps its live `TriggerEngine`/`ExecutionState` onto `decide()`'s `(config, state, call)` contract and consults the *same* reference `decide()` on every evaluated tool call and every LLM call, recording the verdict on `state.last_decision`. So "SP/1.0-conformant" refers to the spec, the fixtures, and the reference implementation the shipped runtime actually calls — one decision surface, not two implementations that happen to agree.
+> **Which layer is which:** [`shackle/conformance.py`](shackle/conformance.py) + [`fixtures/conformance.json`](fixtures/conformance.json) are the **conformance-verified layer** — the authored spec and its 15 hash-verifiable vectors, with a reference `decide()`. [`shackle/core.py`](shackle/core.py) is the **shipped runtime integration** (the `@Guard` decorator): it maps its live `TriggerEngine`/`ExecutionState` onto `decide()`'s `(config, state, call)` contract and consults the *same* reference `decide()` on every evaluated tool call and every LLM call, recording the verdict on `state.last_decision`. So "SP/1.0-conformant" refers to the spec, the fixtures, and the reference implementation the shipped runtime actually calls — one decision surface, not two implementations that happen to agree.
 
 **Authorship & provenance:** SHACKLE, the `Required ⊆ Supported` conformance model, the `decide()` surface, and the HITL transition contract are authored by **Dante Bullock ([@Fame510](https://github.com/Fame510))**, sole author. First published 2026-06-17.
 
@@ -38,7 +38,7 @@ Every AI agent, at every step, is about to do something: call a tool, spend budg
 2. **The conformance model — `Valid(τ) ⇔ Required(τ) ⊆ Supported(τ)`.** A transition is valid *if and only if* everything it requires is within what the system provably supports. This is the mathematical spine of the standard: capability is a set relationship, not a promise.
 3. **The core invariant — *history-visible ≠ runtime-executable*.** The fact that an action is recorded, resumed, or replayed is **not** evidence that it was ever authorized. A rejected or deferred action that comes back around is denied, not waved through. This single rule closes the class of failures where agents "resume" their way past their own guardrails.
 
-SP/1.0 ships as **14 hash-verifiable conformance vectors** ([`fixtures/conformance.json`](fixtures/conformance.json)) — 9 decision-core cases plus 5 human-in-the-loop transition cases (approve / reject / modify / defer-escalate / duplicate-resume) — and a stdlib-only reference implementation ([`shackle/conformance.py`](shackle/conformance.py)). **You do not take the standard on faith. You run it.** `pytest tests/test_conformance.py` executes every vector against the reference, and the reference implementation passes its own suite — verified, not asserted.
+SP/1.0 ships as **15 hash-verifiable conformance vectors** ([`fixtures/conformance.json`](fixtures/conformance.json)) — 10 decision-core cases plus 5 human-in-the-loop transition cases (approve / reject / modify / defer-escalate / duplicate-resume) — and a stdlib-only reference implementation ([`shackle/conformance.py`](shackle/conformance.py)). **You do not take the standard on faith. You run it.** `pytest tests/test_conformance.py` executes every vector against the reference, and the reference implementation passes its own suite — verified, not asserted.
 
 ---
 
