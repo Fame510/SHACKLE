@@ -14,6 +14,7 @@ import asyncio
 import json
 import sys
 import time
+import threading
 import logging
 from typing import Any, Callable, Dict, List, Optional, Tuple
 from dataclasses import dataclass, field
@@ -65,6 +66,16 @@ class ExecutionState:
     total_tool_calls: int = 0
     tool_history: Dict[Tuple[str, str], int] = field(default_factory=dict)
     last_decision: Tuple[str, str] = ("ALLOW", "within_thresholds")  # SP/1.0 decide() verdict
+    # Per-state RLock guards every read-modify-write of the fields above.
+    # The previous design mutated total_cost, input_tokens, output_tokens,
+    # total_tool_calls, and tool_history without any synchronization, so
+    # two threads could each read the same pre-mutation value, both write
+    # their delta, and both pass the post-mutation budget/repeat check
+    # (classic lost-update). RLock (not Lock) because a single thread may
+    # legitimately re-enter: e.g. an LLM call patched by shackle triggering
+    # another LLM call on the same Guard's state. Each Guard scope gets its
+    # own state, so distinct Guard instances never contend.
+    _lock: "threading.RLock" = field(default_factory=threading.RLock)
 
 
 class ShackleInterrupt(Exception):
@@ -146,67 +157,132 @@ class TriggerEngine:
             return ("ALLOW", "decide_unavailable")
 
     def evaluate_llm_call(self, model: str, input_tokens: int, output_tokens: int, state: ExecutionState) -> None:
-        pricing = MODEL_PRICING.get(model.lower(), MODEL_PRICING["default"])
-        call_cost = ((input_tokens * pricing["input"]) + (output_tokens * pricing["output"])) / 1_000_000
-        state.total_cost += call_cost
-        state.input_tokens += input_tokens
-        state.output_tokens += output_tokens
-        # SP/1.0: record the reference decision for this cost state.
-        _remaining = max(self.budget - state.total_cost, 0.0)
-        try:
-            state.last_decision = _sp_decide(
-                {"budget_usd": self.budget},
-                {"budget_remaining_usd": _remaining, "budget_initial_usd": self.budget},
-                {"tool_name": model, "params": {}},
-            )
-        except Exception:  # pragma: no cover
-            pass
-        if state.total_cost >= self.budget:
-            raise ShackleInterrupt(
-                message=f"Budget breached: ${state.total_cost:.5f} spent (limit: ${self.budget:.2f})",
-                trigger_type="BUDGET_EXCEEDED", state=state,
-                details={"model": model, "current_cost": state.total_cost, "limit": self.budget,
-                          "input_tokens": state.input_tokens, "output_tokens": state.output_tokens})
+        # CRITICAL SECTION: the entire read-decide-mutate-check sequence runs
+        # under the per-state RLock. Without this, two concurrent LLM calls
+        # on the same Guard would each read pre-mutation total_cost, each
+        # write their delta, and each pass the post-mutation `>= self.budget`
+        # check (lost update), letting combined spend exceed budget by up to
+        # N*(single-call-cost) before anything trips.
+        with state._lock:
+            pricing = MODEL_PRICING.get(model.lower(), MODEL_PRICING["default"])
+            call_cost = ((input_tokens * pricing["input"]) + (output_tokens * pricing["output"])) / 1_000_000
+            # SP/1.0: consult the reference decision function with the
+            # PRE-mutation remaining + this call's estimated_cost. decide()
+            # returns DENY/budget_overrun if this single call would push
+            # remaining negative, which is the case the previous design
+            # could not catch under concurrency even after locking (the
+            # post-mutation check only fires when we've ALREADY gone over).
+            pre_remaining = max(self.budget - state.total_cost, 0.0)
+            config = {"budget_usd": self.budget}
+            decide_state = {
+                "budget_initial_usd": self.budget,
+                "budget_remaining_usd": pre_remaining,
+                "circuit_tripped": False,
+                "seen_nonces": [],
+            }
+            call = {
+                "tool_name": model,
+                "params": {},
+                "estimated_cost_usd": call_cost,
+            }
+            # decide() is total under the conformance suite, but the previous
+            # implementation silently swallowed any exception with `pass`,
+            # which is the exact opposite of "fail closed". Surface the
+            # failure on the audit trail and deny the call.
+            try:
+                state.last_decision = _sp_decide(config, decide_state, call)
+            except Exception as e:  # pragma: no cover - defensive
+                logger.warning(
+                    "SHACKLE: decide() raised during cost consultation (%r); "
+                    "failing closed (denying call).", e,
+                )
+                state.last_decision = ("DENY", "decide_unavailable_fail_closed")
+            verdict, reason = state.last_decision
+            if verdict == "DENY":
+                if reason == "budget_overrun":
+                    # This single call would exceed the remaining budget.
+                    # Do NOT mutate state -- the call never happened.
+                    raise ShackleInterrupt(
+                        message=(f"Budget overrun: this call costs ${call_cost:.5f} "
+                                 f"but only ${pre_remaining:.5f} remains "
+                                 f"(limit: ${self.budget:.2f})"),
+                        trigger_type="BUDGET_OVERRUN", state=state,
+                        details={"model": model, "call_cost": call_cost,
+                                 "remaining": pre_remaining, "limit": self.budget})
+                if reason == "budget_exhausted":
+                    # No budget left at all; refuse the call without mutating.
+                    raise ShackleInterrupt(
+                        message=(f"Budget exhausted: ${state.total_cost:.5f} spent "
+                                 f"(limit: ${self.budget:.2f})"),
+                        trigger_type="BUDGET_EXCEEDED", state=state,
+                        details={"model": model, "current_cost": state.total_cost,
+                                 "limit": self.budget})
+                # Any other DENY from decide() is unexpected on the cost
+                # path; fail closed.
+                raise ShackleInterrupt(
+                    message=f"SHACKLE denied call: {reason}",
+                    trigger_type="DECIDE_DENY", state=state,
+                    details={"model": model, "reason": reason,
+                             "call_cost": call_cost, "limit": self.budget})
+            # Allowed by decide(): mutate state, then re-check the
+            # post-mutation total against the hard limit. This catches the
+            # "this call exactly exhausted the budget" edge case (remaining
+            # went from >0 to 0, which is not an overrun, but the call did
+            # spend the last dollar and should not be silently allowed).
+            state.total_cost += call_cost
+            state.input_tokens += input_tokens
+            state.output_tokens += output_tokens
+            if state.total_cost >= self.budget:
+                raise ShackleInterrupt(
+                    message=f"Budget breached: ${state.total_cost:.5f} spent (limit: ${self.budget:.2f})",
+                    trigger_type="BUDGET_EXCEEDED", state=state,
+                    details={"model": model, "current_cost": state.total_cost, "limit": self.budget,
+                              "input_tokens": state.input_tokens, "output_tokens": state.output_tokens})
 
     def evaluate_tool_call(self, agent_name: str, tool_name: str, tool_input: Any, state: ExecutionState) -> None:
-        elapsed = time.time() - state.start_time
-        state.total_tool_calls += 1
+        # CRITICAL SECTION: total_tool_calls, tool_history[key] = get + 1,
+        # and last_decision are all racy under concurrent tool invocations
+        # (e.g. a thread-pool executor inside the agent framework dispatching
+        # multiple tools in parallel). Same lock as the cost path.
+        with state._lock:
+            elapsed = time.time() - state.start_time
+            state.total_tool_calls += 1
 
-        if elapsed > self.timeout_seconds:
-            raise ShackleInterrupt(
-                message=f"Execution timeout: {elapsed:.1f}s elapsed (limit: {self.timeout_seconds}s)",
-                trigger_type="TIMEOUT_REACHED", state=state,
-                details={"elapsed_seconds": elapsed, "limit": self.timeout_seconds})
+            if elapsed > self.timeout_seconds:
+                raise ShackleInterrupt(
+                    message=f"Execution timeout: {elapsed:.1f}s elapsed (limit: {self.timeout_seconds}s)",
+                    trigger_type="TIMEOUT_REACHED", state=state,
+                    details={"elapsed_seconds": elapsed, "limit": self.timeout_seconds})
 
-        input_key = _canonicalize_tool_input(tool_input)  # FIX #1
-        key = (tool_name, input_key)
-        state.tool_history[key] = state.tool_history.get(key, 0) + 1
-        count = state.tool_history[key]
+            input_key = _canonicalize_tool_input(tool_input)  # FIX #1
+            key = (tool_name, input_key)
+            state.tool_history[key] = state.tool_history.get(key, 0) + 1
+            count = state.tool_history[key]
 
-        input_lower = input_key.lower()
-        is_error_loop = any(token in input_lower for token in
-                             ("error", "failed", "unauthorized", "401", "403", "500", "timeout"))
-        effective_count = count + (1 if is_error_loop and count >= 2 else 0)
+            input_lower = input_key.lower()
+            is_error_loop = any(token in input_lower for token in
+                                 ("error", "failed", "unauthorized", "401", "403", "500", "timeout"))
+            effective_count = count + (1 if is_error_loop and count >= 2 else 0)
 
-        # ---- SP/1.0: consult the reference decision function ----
-        # Map live runtime state onto decide()'s (config, state, call) contract and
-        # record its verdict. This makes core.py literally exercise the same decision
-        # surface the conformance fixtures verify, on every tool call.
-        sp_verdict, sp_reason = self._consult_decide(tool_name, effective_count, state)
-        state.last_decision = (sp_verdict, sp_reason)
+            # ---- SP/1.0: consult the reference decision function ----
+            # Map live runtime state onto decide()'s (config, state, call) contract and
+            # record its verdict. This makes core.py literally exercise the same decision
+            # surface the conformance fixtures verify, on every tool call.
+            sp_verdict, sp_reason = self._consult_decide(tool_name, effective_count, state)
+            state.last_decision = (sp_verdict, sp_reason)
 
-        if effective_count >= self.max_repeat_calls:
-            raise ShackleInterrupt(
-                message=f"Loop of Death detected: '{tool_name}' called {count}x with identical input",
-                trigger_type="REPETITIVE_TOOL_CALL", state=state,
-                details={"agent": agent_name, "tool": tool_name, "input": input_key[:200],
-                          "call_count": count, "error_loop": is_error_loop})
+            if effective_count >= self.max_repeat_calls:
+                raise ShackleInterrupt(
+                    message=f"Loop of Death detected: '{tool_name}' called {count}x with identical input",
+                    trigger_type="REPETITIVE_TOOL_CALL", state=state,
+                    details={"agent": agent_name, "tool": tool_name, "input": input_key[:200],
+                              "call_count": count, "error_loop": is_error_loop})
 
-        if state.total_tool_calls >= self.max_tool_calls:
-            raise ShackleInterrupt(
-                message=f"Max tool calls reached: {state.total_tool_calls} (limit: {self.max_tool_calls})",
-                trigger_type="MAX_TOOL_CALLS", state=state,
-                details={"total_calls": state.total_tool_calls, "limit": self.max_tool_calls})
+            if state.total_tool_calls >= self.max_tool_calls:
+                raise ShackleInterrupt(
+                    message=f"Max tool calls reached: {state.total_tool_calls} (limit: {self.max_tool_calls})",
+                    trigger_type="MAX_TOOL_CALLS", state=state,
+                    details={"total_calls": state.total_tool_calls, "limit": self.max_tool_calls})
 
 
 def render_hitl_terminal(interrupt: ShackleInterrupt) -> str:

@@ -7,7 +7,7 @@ import base64
 import json
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Optional
 
@@ -203,7 +203,7 @@ class AuditLogger:
     ):
         """Log a pre-execution decision"""
         try:
-            timestamp = datetime.utcnow()
+            timestamp = datetime.now(timezone.utc)
             
             record = {
                 "timestamp": timestamp.isoformat(),
@@ -244,7 +244,7 @@ class AuditLogger:
     ):
         """Log a post-execution result"""
         try:
-            timestamp = datetime.utcnow()
+            timestamp = datetime.now(timezone.utc)
             
             record = {
                 "timestamp": timestamp.isoformat(),
