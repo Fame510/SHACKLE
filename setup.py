@@ -21,7 +21,7 @@ setup(
         "pyyaml>=6.0.0",
     ],
     extras_require={
-        "dev": ["pytest>=7.0.0"],
+        "dev": ["pytest>=7.0.0", "pytest-asyncio>=0.23.0"],
     },
     classifiers=[
         "Development Status :: 4 - Beta",

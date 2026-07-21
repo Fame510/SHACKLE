@@ -1,3 +1,7 @@
+# NOTE: This is a FORWARD-LOOKING reference implementation. The decision core
+# certified by the SP/1.0 conformance fixtures and executed by the production
+# daemon is shackle/conformance.py:decide. This module is not wired into the
+# daemon runtime (only benchmarks import it). Keep that distinction in mind.
 """
 SHACKLE Core Decision Function â SP/1.0
 ========================================
