@@ -58,7 +58,7 @@ For a buyer, "SHACKLE Certified" answers the question every serious acquirer, en
 
 ### How to Get Certified (open to any runtime, today)
 
-1. **Run the suite** against your runtime: `pytest tests/test_conformance.py` and `pytest v2/tests/test_conformance.py`.
+1. **Run the suite** against your runtime: `pytest tests/test_conformance.py` and `pytest v2/tests/test_v2_conformance.py`.
 2. **Capture the evidence.** SHACKLE emits a per-fixture pass/fail report with the fixture hashes it verified against. That report *is* your conformance artifact — independently reproducible by anyone.
 3. **Submit for listing.** Open a [certification request](https://github.com/Fame510/SHACKLE/issues/new?template=certification_request.yml) with your report and a public, reproducible evidence link. An automated check re-runs the public fixtures; a maintainer verifies before listing.
 4. **Get listed.** Verified runtimes appear in the public **[SHACKLE Conformance Registry](https://fame510.github.io/SHACKLE/registry.html)** with the level achieved, SP/1.0 version, and date — and may display the SP/1.0 Certified badge.

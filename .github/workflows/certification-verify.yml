@@ -50,7 +50,7 @@ jobs:
             echo "ROOT_EXIT=$?"
             echo ""
             echo "### V2 conformance (v2/tests/) - includes HITL transition fixtures"
-            PYTHONPATH=. python -m pytest v2/tests/test_conformance.py -rA --tb=short
+            PYTHONPATH=. python -m pytest v2/tests/test_v2_conformance.py -rA --tb=short
             echo "V2_EXIT=$?"
           } > conf_out.txt 2>&1
           cat conf_out.txt
@@ -123,7 +123,7 @@ jobs:
           echo '```' >> "$GITHUB_STEP_SUMMARY"
           echo '### V2 (v2/tests/) - includes HITL transitions' >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
-          PYTHONPATH=. python -m pytest v2/tests/test_conformance.py -rA --tb=short 2>&1 | tee -a "$GITHUB_STEP_SUMMARY"
+          PYTHONPATH=. python -m pytest v2/tests/test_v2_conformance.py -rA --tb=short 2>&1 | tee -a "$GITHUB_STEP_SUMMARY"
           V2=${PIPESTATUS[0]}
           echo '```' >> "$GITHUB_STEP_SUMMARY"
           if [ "$ROOT" -eq 0 ] && [ "$V2" -eq 0 ]; then

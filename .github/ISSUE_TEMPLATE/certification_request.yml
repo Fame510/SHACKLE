@@ -8,7 +8,7 @@ body:
       value: |
         ## SHACKLE Certification Request
         Certification is verified against the **public conformance fixtures**. Run
-        `pytest v2/tests/test_conformance.py` against your runtime, then submit the
+        `pytest v2/tests/test_v2_conformance.py` against your runtime, then submit the
         report below. Every claim here must be independently reproducible.
   - type: input
     id: runtime_name
