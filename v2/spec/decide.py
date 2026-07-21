@@ -3,7 +3,7 @@
 # daemon is shackle/conformance.py:decide. This module is not wired into the
 # daemon runtime (only benchmarks import it). Keep that distinction in mind.
 """
-SHACKLE Core Decision Function â SP/1.0
+SHACKLE Core Decision Function — SP/1.0
 ========================================
 The single function that answers:
 "Should this agent execute this tool with these parameters at this moment?"
@@ -13,11 +13,11 @@ PROPERTIES (provably correct):
   P2: Repeat counts non-decreasing
   P3: Once tripped, always tripped
   P4: Budget never negative
-  P5: Repeat limit â DENY
-  P6: Fresh state â ALLOW
-  P7: Deterministic (same inputs â same output)
-  P8: HITL_ALWAYS â HITL (unless circuit tripped)
-  P9: Duplicate nonce â DENY
+  P5: Repeat limit → DENY
+  P6: Fresh state → ALLOW
+  P7: Deterministic (same inputs → same output)
+  P8: HITL_ALWAYS → HITL (unless circuit tripped)
+  P9: Duplicate nonce → DENY
 
 DESIGN: Pure function. No I/O. No side effects. No allocations in hot path.
         Human-auditable in under 10 minutes. Under 200 lines of logic.
@@ -32,9 +32,9 @@ import hashlib
 import json
 
 
-# ââââââââââââââââââââââââââââââââââââââââââ
+# ══════════════════════════════════════════
 # Enums
-# ââââââââââââââââââââââââââââââââââââââââââ
+# ══════════════════════════════════════════
 
 class Verdict(Enum):
     ALLOW = "ALLOW"
@@ -61,9 +61,9 @@ class HitlMode(Enum):
     ALWAYS = "always"
 
 
-# ââââââââââââââââââââââââââââââââââââââââââ
+# ══════════════════════════════════════════
 # Data Classes
-# ââââââââââââââââââââââââââââââââââââââââââ
+# ══════════════════════════════════════════
 
 @dataclass
 class GuardConfig:
@@ -131,9 +131,9 @@ class Decision:
     probabilistic_deny: bool = False
 
 
-# ââââââââââââââââââââââââââââââââââââââââââ
+# ══════════════════════════════════════════
 # Error Signal Detection
-# ââââââââââââââââââââââââââââââââââââââââââ
+# ══════════════════════════════════════════
 
 _ERROR_SIGNALS = (
     "401", "unauthorized", "403", "forbidden", "500",
@@ -158,9 +158,9 @@ def has_error_signal(params_raw: str) -> bool:
     return False
 
 
-# ââââââââââââââââââââââââââââââââââââââââââ
+# ══════════════════════════════════════════
 # THE DECISION FUNCTION
-# ââââââââââââââââââââââââââââââââââââââââââ
+# ══════════════════════════════════════════
 
 # --- Canonicalization & Context Validation (SP/1.0) ---
 # If a call's params contain an opaque context the guard cannot evaluate,
@@ -264,7 +264,7 @@ def decide(
     # Layer 2: Nonce validation (anti-replay)
     if call.nonce in state.seen_nonces:
         return Decision(Verdict.DENY, DenyReason.POLICY_VIOLATION,
-                        "Duplicate nonce â replay attack suspected")
+                        "Duplicate nonce — replay attack suspected")
 
     # Layer 2b: Canonicalization guard (reject non-canonicalizable input)
     # A differing hash for logically-equal params is a conformance failure, so
@@ -345,9 +345,9 @@ def decide(
     return Decision(Verdict.ALLOW, human_readable="Within all guard thresholds")
 
 
-# ââââââââââââââââââââââââââââââââââââââââââ
+# ══════════════════════════════════════════
 # State Transition Helpers (daemon-side)
-# ââââââââââââââââââââââââââââââââââââââââââ
+# ══════════════════════════════════════════
 
 def apply_allow(state: SessionState, call: ToolCall) -> None:
     """Update state after ALLOW verdict. Called by daemon only."""
