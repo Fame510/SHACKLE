@@ -27,7 +27,11 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0.0",
+    "pytest-asyncio>=0.23.0",
 ]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
 
 [project.urls]
 Homepage = "https://github.com/Fame510/SHACKLE"

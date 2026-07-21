@@ -14,8 +14,15 @@ import asyncio
 import os
 import uuid
 
-import pytest
 import pytest_asyncio
+
+import pytest
+
+# Integration test: exercises the atomic decision path against a REAL Redis.
+# Skip cleanly (instead of erroring at collection) when redis-py is not
+# installed, so a fresh clone's `pytest` run stays green. To actually run it,
+# install redis and set REDIS_URL (see module docstring).
+pytest.importorskip("redis", reason="requires redis-py and a live Redis (set REDIS_URL)")
 
 from state import StateManager
 
