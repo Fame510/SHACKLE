@@ -1,4 +1,4 @@
-# SHACKLE Protocol Specification â SP/1.0
+# SHACKLE Protocol Specification — SP/1.0
 
 ## Runtime Circuit Breaker for Autonomous AI Agents
 
@@ -32,14 +32,14 @@ SHACKLE is the **first open-source runtime circuit breaker for AI agents** with 
 
 ### 1.1 The Problem
 
-Autonomous AI agents execute tools â web search, file I/O, API calls, code execution â with no runtime oversight. The framework's recursion limit or token cap is the only guardrail. When an agent enters a retry loop (same tool, same error, burning tokens each time), there is no mechanism to detect, intercept, and stop it before the wallet is empty.
+Autonomous AI agents execute tools — web search, file I/O, API calls, code execution — with no runtime oversight. The framework's recursion limit or token cap is the only guardrail. When an agent enters a retry loop (same tool, same error, burning tokens each time), there is no mechanism to detect, intercept, and stop it before the wallet is empty.
 
 This is not hypothetical. Production deployments have documented:
 - Agent infinite loops consuming $6,000+ in API costs before the recursion limit fired
 - Duplicate tool calls repeating 50+ times with no variation
 - Spawned child processes hanging indefinitely while consuming tokens
 
-The industry consensus â independently reached by multiple teams in June 2026 â is that **generation authority is not release authority.** The model generates candidates. A separate mediation layer must authorize execution.
+The industry consensus — independently reached by multiple teams in June 2026 — is that **generation authority is not release authority.** The model generates candidates. A separate mediation layer must authorize execution.
 
 SHACKLE is that mediation layer.
 
@@ -47,22 +47,22 @@ SHACKLE is that mediation layer.
 
 | Principle | Meaning |
 |-----------|---------|
-| **Deterministic core** | `decide(state, call) â Verdict` is a pure function. Same inputs always produce same outputs. |
+| **Deterministic core** | `decide(state, call) → Verdict` is a pure function. Same inputs always produce same outputs. |
 | **Daemon as authority** | The SHACKLE daemon is the sole source of truth for time, state, and verdicts. Agents are untrusted. |
 | **Append-only audit** | Every decision is Ed25519-signed and written to an immutable audit log. Chain-of-custody is cryptographically verifiable. |
 | **Mathematically verified** | 9 invariant properties hold under all inputs, proven by property-based testing (Hypothesis, 500+ examples each). |
 | **Graceful degradation** | Agents function in local/library mode without a daemon. Distributed state is an upgrade path. |
-| **Fail-closed** | Network failure, daemon crash, or timeout â DENY. No execution without explicit authorization. |
+| **Fail-closed** | Network failure, daemon crash, or timeout → DENY. No execution without explicit authorization. |
 
 ### 1.3 Scope
 
 This specification covers:
-- The decision function and its 9 mathematical invariants (Â§3)
-- Message schemas and semantics (Â§4)
-- State model (Â§5)
-- Transport bindings (Â§6)
-- Audit and security (Â§7)
-- Compliance framework (Â§8)
+- The decision function and its 9 mathematical invariants (§3)
+- Message schemas and semantics (§4)
+- State model (§5)
+- Transport bindings (§6)
+- Audit and security (§7)
+- Compliance framework (§8)
 
 This specification does NOT cover:
 - Daemon persistence layer (implementation detail)
@@ -76,58 +76,58 @@ This specification does NOT cover:
 ### 2.1 Deployment Models
 
 ```
-MODEL A â Library Mode (In-Process)
-âââââââââââââââââââââââââââ
-â  Agent Process          â
-â  âââââââââââââââââââââ  â
-â  â @Guard decorator  â  â
-â  â Local state only  â  â
-â  âââââââââââââââââââââ  â
-âââââââââââââââââââââââââââ
+MODEL A — Library Mode (In-Process)
+┌─────────────────────────┐
+│  Agent Process          │
+│  ┌───────────────────┐  │
+│  │ @Guard decorator  │  │
+│  │ Local state only  │  │
+│  └───────────────────┘  │
+└─────────────────────────┘
 
-MODEL B â Sidecar Daemon (Production)
-âââââââââââââââââââ     Unix/gRPC      ââââââââââââââââââââââââââââ
-â  Agent Process  â ââââââââââââââââââº â  SHACKLE Daemon          â
-â  âââââââââââââ  â   pre_exec         â  ââââââââââââââââââââââ  â
-â  â Thin      â  â   post_exec        â  â Policy Engine      â  â
-â  â Client    â  â   register         â  â - Budgets          â  â
-â  â Shim      â  â   heartbeat        â  â - Counters         â  â
-â  âââââââââââââ  â                    â  â - Circuit Breakers â  â
-âââââââââââââââââââ                    â  ââââââââââââââââââââââ  â
-                                        â  ââââââââââââââââââââââ  â
-                                        â  â Audit Log          â  â
-                                        â  â Ed25519-signed     â  â
-                                        â  â Append-only        â  â
-                                        â  â Chain-linked       â  â
-                                        â  ââââââââââââââââââââââ  â
-                                        ââââââââââââââââââââââââââââ
+MODEL B — Sidecar Daemon (Production)
+┌─────────────────┐     Unix/gRPC      ┌──────────────────────────┐
+│  Agent Process  │ ◄────────────────► │  SHACKLE Daemon          │
+│  ┌───────────┐  │   pre_exec         │  ┌────────────────────┐  │
+│  │ Thin      │  │   post_exec        │  │ Policy Engine      │  │
+│  │ Client    │  │   register         │  │ - Budgets          │  │
+│  │ Shim      │  │   heartbeat        │  │ - Counters         │  │
+│  └───────────┘  │                    │  │ - Circuit Breakers │  │
+└─────────────────┘                    │  └────────────────────┘  │
+                                        │  ┌────────────────────┐  │
+                                        │  │ Audit Log          │  │
+                                        │  │ Ed25519-signed     │  │
+                                        │  │ Append-only        │  │
+                                        │  │ Chain-linked       │  │
+                                        │  └────────────────────┘  │
+                                        └──────────────────────────┘
 
-MODEL C â Distributed (Enterprise)
-ââââââââââââ  ââââââââââââ  ââââââââââââ
-â Agent A  â  â Agent B  â  â Agent C  â
-ââââââ¬ââââââ  ââââââ¬ââââââ  ââââââ¬ââââââ
-     âââââââââââââââ¬ââââââââââââââ
-                   â  gRPC/TLS
-          ââââââââââ´âââââââââ
-          â  SHACKLE        â
-          â  Daemon Cluster â
-          â  Redis (state)  â
-          â  Postgres (logs)â
-          âââââââââââââââââââ
+MODEL C — Distributed (Enterprise)
+┌──────────┐  ┌──────────┐  ┌──────────┐
+│ Agent A  │  │ Agent B  │  │ Agent C  │
+└────┬─────┘  └────┬─────┘  └────┬─────┘
+     └─────────────┬─────────────┘
+                   │  gRPC/TLS
+          ┌────────┴────────┐
+          │  SHACKLE        │
+          │  Daemon Cluster │
+          │  Redis (state)  │
+          │  Postgres (logs)│
+          └─────────────────┘
 ```
 
 ### 2.2 Protocol Layers
 
 ```
-ââââââââââââââââââââââââââââââââââââ
-â    Policy Language (future)      â  â DSL for guard rules
-ââââââââââââââââââââââââââââââââââââ¤
-â    Decision Function             â  â decide(state, call) â Verdict
-ââââââââââââââââââââââââââââââââââââ¤
-â    Message Protocol              â  â This specification
-ââââââââââââââââââââââââââââââââââââ¤
-â    Transport (Unix/gRPC/WS)      â  â Binding layer
-ââââââââââââââââââââââââââââââââââââ
+┌──────────────────────────────────┐
+│    Policy Language (future)      │  ← DSL for guard rules
+├──────────────────────────────────┤
+│    Decision Function             │  ← decide(state, call) → Verdict
+├──────────────────────────────────┤
+│    Message Protocol              │  ← This specification
+├──────────────────────────────────┤
+│    Transport (Unix/gRPC/WS)      │  ← Binding layer
+└──────────────────────────────────┘
 ```
 
 ---
@@ -136,7 +136,7 @@ MODEL C â Distributed (Enterprise)
 
 ### 3.1 Core Function
 
-The decision function is the heart of SHACKLE. It is a pure function â no I/O, no side effects, no allocations in the hot path. It is human-auditable in under 10 minutes. It is under 200 lines of logic.
+The decision function is the heart of SHACKLE. It is a pure function — no I/O, no side effects, no allocations in the hot path. It is human-auditable in under 10 minutes. It is under 200 lines of logic.
 
 ```
 function decide(
@@ -144,30 +144,30 @@ function decide(
     call: ToolCall,
     config: GuardConfig,
     rng_float: float
-) â Verdict
+) → Verdict
 ```
 
-### 3.2 Decision Algorithm â 8 Stacked Layers
+### 3.2 Decision Algorithm — 8 Stacked Layers
 
 ```
 Layer 1: Circuit Breaker
     IF state.circuit_tripped:
-        â DENY(CIRCUIT_OPEN)
+        → DENY(CIRCUIT_OPEN)
 
 Layer 2: Nonce Validation (Anti-Replay)
     IF call.nonce IN state.seen_nonces:
-        â DENY(POLICY_VIOLATION)
+        → DENY(POLICY_VIOLATION)
 
 Layer 3: Budget Guard
     IF config.budget_usd > 0:
         IF state.budget_remaining_usd <= 0:
-            â DENY(BUDGET_EXHAUSTED)
+            → DENY(BUDGET_EXHAUSTED)
         IF hitl_mode == ON_THRESHOLD AND fraction <= threshold:
-            â HITL("budget threshold reached")
+            → HITL("budget threshold reached")
         IF call.cost > state.budget_remaining:
             IF hitl_mode IN (ON_DENY, ALWAYS):
-                â HITL("cost exceeds remaining budget")
-            â DENY(BUDGET_EXHAUSTED)
+                → HITL("cost exceeds remaining budget")
+            → DENY(BUDGET_EXHAUSTED)
 
 Layer 4: Repeat Call Guard
     IF config.max_repeat_calls > 0:
@@ -176,28 +176,28 @@ Layer 4: Repeat Call Guard
             IF error_amplification AND has_error_signal(call):
                 limit = max(1, limit - 1)
             IF repeat_count >= limit:
-                â DENY(MAX_REPEAT_EXCEEDED)
+                → DENY(MAX_REPEAT_EXCEEDED)
 
 Layer 5: Time Window Guard
     IF config.window_max_calls > 0:
         IF window_count >= window_max_calls:
-            â DENY(WINDOW_EXCEEDED)
+            → DENY(WINDOW_EXCEEDED)
 
 Layer 6: Global Call Limit
     IF config.max_total_calls > 0 AND total_calls >= max_total_calls:
-        â DENY(GLOBAL_LIMIT)
+        → DENY(GLOBAL_LIMIT)
 
 Layer 7: Probabilistic Denial (Adversarial Hardening)
     IF probabilistic_deny AND budget_ratio < 0.2:
         IF rng < deny_jitter_ratio * (1.0 - budget_ratio):
-            â DENY(BUDGET_EXHAUSTED, probabilistic=true)
+            → DENY(BUDGET_EXHAUSTED, probabilistic=true)
 
 Layer 8: HITL Always
     IF hitl_mode == ALWAYS:
-        â HITL("HITL required for all calls")
+        → HITL("HITL required for all calls")
 
 Default:
-    â ALLOW
+    → ALLOW
 ```
 
 ### 3.3 Mathematical Invariants (Must Hold Under All Inputs)
@@ -206,15 +206,15 @@ These 9 properties are verified by property-based testing (Hypothesis, Python) w
 
 | # | Property | Formal Statement |
 |---|----------|-----------------|
-| **P1** | Budget monotonically non-increasing | â calls: budget_after â¤ budget_before |
-| **P2** | Repeat counts non-decreasing | â tool: repeat_count never decreases |
-| **P3** | Once tripped, always tripped | circuit_tripped â all subsequent verdicts = DENY |
-| **P4** | Budget never negative | budget_remaining â¥ 0 |
-| **P5** | Repeat limit triggers DENY | repeat_count â¥ max_repeat_calls â verdict = DENY |
-| **P6** | Fresh state ALLOWs first call | fresh SessionState + any ToolCall â ALLOW |
-| **P7** | Deterministic output | identical (state, call, config, rng) â identical Decision |
-| **P8** | HITL_ALWAYS produces HITL | hitl_mode = ALWAYS â§ Â¬circuit_tripped â verdict = HITL |
-| **P9** | Nonce uniqueness enforced | duplicate nonce â DENY |
+| **P1** | Budget monotonically non-increasing | ∀ calls: budget_after ≤ budget_before |
+| **P2** | Repeat counts non-decreasing | ∀ tool: repeat_count never decreases |
+| **P3** | Once tripped, always tripped | circuit_tripped ⇒ all subsequent verdicts = DENY |
+| **P4** | Budget never negative | budget_remaining ≥ 0 |
+| **P5** | Repeat limit triggers DENY | repeat_count ≥ max_repeat_calls ⇒ verdict = DENY |
+| **P6** | Fresh state ALLOWs first call | fresh SessionState + any ToolCall ⇒ ALLOW |
+| **P7** | Deterministic output | identical (state, call, config, rng) ⇒ identical Decision |
+| **P8** | HITL_ALWAYS produces HITL | hitl_mode = ALWAYS ∧ ¬circuit_tripped ⇒ verdict = HITL |
+| **P9** | Nonce uniqueness enforced | duplicate nonce ⇒ DENY |
 
 ### 3.4 Verdict Types
 
@@ -229,7 +229,7 @@ These 9 properties are verified by property-based testing (Hypothesis, Python) w
 | Reason | Trigger |
 |--------|---------|
 | `CIRCUIT_OPEN` | Circuit breaker was previously tripped |
-| `BUDGET_EXHAUSTED` | Budget remaining â¤ 0 or cost > remaining |
+| `BUDGET_EXHAUSTED` | Budget remaining ≤ 0 or cost > remaining |
 | `MAX_REPEAT_EXCEEDED` | Same tool + same params repeated too many times |
 | `WINDOW_EXCEEDED` | Too many calls in the current time window |
 | `GLOBAL_LIMIT` | Session-wide call limit reached |
@@ -248,16 +248,16 @@ Error signals: 401, unauthorized, 403, forbidden, 500, 502, 503,
                resource exhausted, deadline exceeded
 ```
 
-This catches the "loop of death" â agent hits 401, retries, gets 401, retries â without waiting for the full repeat threshold.
+This catches the "loop of death" — agent hits 401, retries, gets 401, retries — without waiting for the full repeat threshold.
 
 ### 3.7 Probabilistic Denial (Adversarial Hardening)
 
 When `probabilistic_deny` is enabled and the agent is below 20% budget, a random factor is introduced:
 
 ```
-probability = deny_jitter_ratio Ã (1.0 â budget_ratio)
+probability = deny_jitter_ratio × (1.0 − budget_ratio)
 IF rng < probability:
-    â DENY (appears as BUDGET_EXHAUSTED)
+    → DENY (appears as BUDGET_EXHAUSTED)
 ```
 
 This prevents adversarial agents from probing the exact budget threshold and gaming it. The denial appears identical to a real budget exhaustion, making it impossible to distinguish signal from noise.
@@ -360,7 +360,7 @@ message PostExecNotification {
 
 ### 4.5 Heartbeat
 
-Agents SHOULD send heartbeats every 30 seconds. 3 consecutive missed heartbeats â session marked STALE.
+Agents SHOULD send heartbeats every 30 seconds. 3 consecutive missed heartbeats → session marked STALE.
 
 ```protobuf
 message Heartbeat {
@@ -409,8 +409,8 @@ message SessionState {
 
   // Counters
   uint64 total_calls = 20;
-  map<string, uint32> repeat_counts = 21;   // tool_name â consecutive identical calls
-  map<string, uint32> window_counts = 22;   // tool_name â calls in current window
+  map<string, uint32> repeat_counts = 21;   // tool_name → consecutive identical calls
+  map<string, uint32> window_counts = 22;   // tool_name → calls in current window
 
   // Circuit
   bool circuit_tripped = 30;
@@ -463,11 +463,11 @@ message GuardConfig {
 
   // Adversarial hardening
   bool probabilistic_deny = 50;
-  double deny_jitter_ratio = 51;      // 0.0â1.0
+  double deny_jitter_ratio = 51;      // 0.0–1.0
 
   // HITL
   HitlMode hitl_mode = 60;            // NEVER | ON_DENY | ON_THRESHOLD | ALWAYS
-  double hitl_budget_threshold = 61;  // 0.0â1.0
+  double hitl_budget_threshold = 61;  // 0.0–1.0
 
   // Hierarchy
   string parent_guard_id = 70;        // For nested guard trees
@@ -513,7 +513,7 @@ SLA:        5ms for pre_exec, 1s for register
 
 ```
 Endpoint:   grpc://localhost:9000 or grpcs:// for TLS
-Service:    ShackleDaemon (see Â§4.6)
+Service:    ShackleDaemon (see §4.6)
 Auth:       mTLS with client certificates
 SLA:        5ms for pre_exec, 1s for register
 ```
@@ -548,7 +548,7 @@ message AuditEntry {
   double budget_before_usd = 11;
   double budget_after_usd = 12;
   string operator_id = 13;           // Human operator if HITL override
-  bytes signature = 14;              // Ed25519 over fields 1â13
+  bytes signature = 14;              // Ed25519 over fields 1–13
   bytes previous_entry_hash = 15;    // Chain-link to previous entry
 }
 ```
@@ -576,12 +576,12 @@ message AuditEntry {
 
 | Threat | Mitigation |
 |--------|-----------|
-| Replay attack | Nonce per call; daemon tracks seen nonces (Â§3.2, Layer 2) |
-| Identity spoofing | Registration with org-level auth (Â§4.2) |
+| Replay attack | Nonce per call; daemon tracks seen nonces (§3.2, Layer 2) |
+| Identity spoofing | Registration with org-level auth (§4.2) |
 | Clock manipulation | Daemon is sole time authority; client timestamps are informational |
-| Budget drift | Heartbeat sync with authoritative state (Â§4.5) |
-| Adversarial probing | Probabilistic denial near thresholds (Â§3.7) |
-| Audit tampering | Append-only file; Ed25519 signatures; chain-linked entries (Â§7.2) |
+| Budget drift | Heartbeat sync with authoritative state (§4.5) |
+| Adversarial probing | Probabilistic denial near thresholds (§3.7) |
+| Audit tampering | Append-only file; Ed25519 signatures; chain-linked entries (§7.2) |
 | DoS | Rate limiting per session; message size cap (1MB) |
 | Protocol parser exploits | Separate process for parsing; seccomp sandbox |
 
@@ -606,17 +606,17 @@ message AuditEntry {
 | **CC6.3** Security Incidents | Circuit breaker trip events | AuditEntry with DENY verdict |
 | **CC7.2** System Monitoring | Heartbeat + drift detection | Heartbeat/HeartbeatAck messages |
 | **CC7.3** Incident Response | HITL console with operator audit trail | operator_id in AuditEntry |
-| **CC8.1** Change Management | Version negotiation + LTS policy | Â§9 |
+| **CC8.1** Change Management | Version negotiation + LTS policy | §9 |
 | **A1.2** Availability | Timeout enforcement | timeout_seconds in GuardConfig |
 | **C1.1** Confidentiality | On-premise daemon, no telemetry | Model B/C deployment; local-only |
-| **PI1.3** Processing Integrity | Deterministic decision function | Â§3.3 properties P1âP9 |
+| **PI1.3** Processing Integrity | Deterministic decision function | §3.3 properties P1–P9 |
 
 ### 8.2 Standards Compliance
 
 SHACKLE audit logs are designed to satisfy:
 - **SOC2 Type II** auditor requests
 - **ISO 27001** Annex A.12.4 (Logging and Monitoring)
-- **GDPR Article 30** (Records of Processing) â for agent actions on personal data
+- **GDPR Article 30** (Records of Processing) — for agent actions on personal data
 - **Cyber insurance** underwriting requirements
 
 ---
@@ -647,12 +647,12 @@ Protocol versions follow SemVer: `MAJOR.MINOR.PATCH`
 ### 9.4 Negotiation
 
 ```
-Client â Daemon: protocol_version = "1.2.0"
+Client → Daemon: protocol_version = "1.2.0"
 Daemon checks:   can support up to 1.0.0
-Daemon â Client: negotiated_protocol = "1.0.0"
+Daemon → Client: negotiated_protocol = "1.0.0"
 ```
 
-No compatible version â Error with code `PROTOCOL_VERSION_MISMATCH`.
+No compatible version → Error with code `PROTOCOL_VERSION_MISMATCH`.
 
 ---
 
@@ -664,13 +664,13 @@ The Python reference implementation lives at:
 
 | Component | File | Status |
 |-----------|------|--------|
-| Decision function | `v2/spec/decide.py` | â Production (187 lines) |
-| Property-based tests | `v2/tests/test_decide_properties.py` | â 18/18 passing |
-| Protocol definitions | `v2/protocol/shackle.proto` | â Complete |
-| Service definitions | `v2/protocol/shackle_service.proto` | â Complete |
-| CI pipeline | `.github/workflows/ci.yml` | â Configured |
-| TypeScript library | `v2/ts/` | â Published |
-| Docker image | `Dockerfile` | â Multi-stage |
+| Decision function | `v2/spec/decide.py` | ✅ Production (187 lines) |
+| Property-based tests | `v2/tests/test_decide_properties.py` | ✅ 18/18 passing |
+| Protocol definitions | `v2/protocol/shackle.proto` | ✅ Complete |
+| Service definitions | `v2/protocol/shackle_service.proto` | ✅ Complete |
+| CI pipeline | `.github/workflows/ci.yml` | ✅ Configured |
+| TypeScript library | `v2/ts/` | ✅ Published |
+| Docker image | `Dockerfile` | ✅ Multi-stage |
 
 ### 10.1 Quick Start
 
@@ -691,25 +691,25 @@ Install: `pip install git+https://github.com/Fame510/SHACKLE.git`
 ## Appendix A: Example Flow
 
 ```
-1.  Agent â Daemon: REGISTER(agent_id="research-bot", framework="crewai")
-2.  Daemon â Agent: REGISTER_RESPONSE(session_id="s_01", config={budget:0.50, max_repeat:3})
+1.  Agent → Daemon: REGISTER(agent_id="research-bot", framework="crewai")
+2.  Daemon → Agent: REGISTER_RESPONSE(session_id="s_01", config={budget:0.50, max_repeat:3})
 
-3.  Agent â Daemon: PRE_EXEC(call=1, tool="web_search", hash=0xDEAD, cost=0.002)
-4.  Daemon â Agent: PRE_EXEC_RESPONSE(verdict=ALLOW, budget_remaining=0.498)
+3.  Agent → Daemon: PRE_EXEC(call=1, tool="web_search", hash=0xDEAD, cost=0.002)
+4.  Daemon → Agent: PRE_EXEC_RESPONSE(verdict=ALLOW, budget_remaining=0.498)
 
 5.  Agent: [executes web_search]
-6.  Agent â Daemon: POST_EXEC(call=1, actual_cost=0.0015, success=true)
+6.  Agent → Daemon: POST_EXEC(call=1, actual_cost=0.0015, success=true)
 
-7.  Agent â Daemon: PRE_EXEC(call=2, tool="web_search", hash=0xDEAD, cost=0.002)
-8.  Daemon â Agent: PRE_EXEC_RESPONSE(verdict=ALLOW, budget_remaining=0.496, repeat_count=1)
+7.  Agent → Daemon: PRE_EXEC(call=2, tool="web_search", hash=0xDEAD, cost=0.002)
+8.  Daemon → Agent: PRE_EXEC_RESPONSE(verdict=ALLOW, budget_remaining=0.496, repeat_count=1)
 
     ... agent repeats 2 more times ...
 
-9.  Agent â Daemon: PRE_EXEC(call=4, tool="web_search", hash=0xDEAD, cost=0.002)
-10. Daemon â Agent: PRE_EXEC_RESPONSE(verdict=DENY, reason=MAX_REPEAT_EXCEEDED, repeat_count=3)
+9.  Agent → Daemon: PRE_EXEC(call=4, tool="web_search", hash=0xDEAD, cost=0.002)
+10. Daemon → Agent: PRE_EXEC_RESPONSE(verdict=DENY, reason=MAX_REPEAT_EXCEEDED, repeat_count=3)
 
 11. Daemon: [writes AuditEntry to append-only log]
-12. Daemon: [trips circuit breaker for session â all subsequent calls DENY]
+12. Daemon: [trips circuit breaker for session — all subsequent calls DENY]
 ```
 
 ---
@@ -735,14 +735,14 @@ Install: `pip install git+https://github.com/Fame510/SHACKLE.git`
 |------|-----------|
 | **Agent** | An autonomous AI process that executes tools |
 | **Circuit Breaker** | Once tripped, all subsequent calls are DENY |
-| **Daemon** | The SHACKLE server process â sole authority for state and verdicts |
+| **Daemon** | The SHACKLE server process — sole authority for state and verdicts |
 | **Guard** | A configured policy (budget, repeat limit, timeout) applied to an agent |
-| **HITL** | Human-in-the-Loop â manual authorization step |
-| **Nonce** | A number used once â anti-replay mechanism |
+| **HITL** | Human-in-the-Loop — manual authorization step |
+| **Nonce** | A number used once — anti-replay mechanism |
 | **Tool Call** | A single invocation of an agent tool (API, file I/O, code exec) |
 | **Verdict** | The decision: ALLOW, DENY, or HITL |
 
 ---
 
-*SP/1.0 â Sovereign Logic, June 2026. Licensed under CC-BY 4.0.*  
+*SP/1.0 — Sovereign Logic, June 2026. Licensed under CC-BY 4.0.*  
 *Reference implementation: AGPLv3 + Commercial. Contact: docspoc101@gmail.com*
