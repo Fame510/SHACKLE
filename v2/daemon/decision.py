@@ -24,6 +24,11 @@ _REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
+# CANONICAL DECISION CORE: shackle.conformance.decide is the SP/1.0 reference
+# certified by the 15 hash-verified fixtures in fixtures/conformance.json, and
+# is the decision function the daemon runs in production. v2/spec/decide.py is a
+# forward-looking reference (richer layering) that is NOT wired into the daemon;
+# do not repoint this import to it without re-certifying against the fixtures.
 from shackle.conformance import canonical_hash, decide  # noqa: E402
 
 Verdict = str  # "ALLOW" | "DENY" | "HITL"
