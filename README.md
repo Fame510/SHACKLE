@@ -6,6 +6,8 @@
 > **The runtime circuit breaker for autonomous AI agents.**
 > One decorator sits inside your runtime and stops runaway loops, budget overruns, and error cascades **before the next tool call fires**. It runs today, it's 100% client-side, and its reference implementation provably passes its own published conformance suite (SP/1.0).
 
+**Status: stable.** SP/1.0 is a published standard: 15 hash-verifiable conformance fixtures, independently reproduced, with the reference implementation passing every vector in CI. The core hooks (litellm + BaseTool) are stable across CrewAI, LangChain/LangGraph, and AutoGen.
+
 ```bash
 pip install pyshackle
 ```
@@ -81,12 +83,14 @@ SHACKLE **amplifies sensitivity** when tool inputs contain error signals (`401`,
 
 | Framework | Support | Notes |
 |---|---|---|
-| **CrewAI** | ✅ Full | litellm hook + BaseTool hook + Agent.execute_task (experimental) |
-| **LangChain / LangGraph** | Sync + async | litellm (completion/acompletion) + BaseTool (run/arun) hooks |
+| **CrewAI** | ✅ Full | litellm hook + BaseTool hook + Agent.execute_task hook* |
+| **LangChain / LangGraph** | ✅ Full | litellm (completion/acompletion) + BaseTool (run/arun) hooks, sync + async |
 | **AutoGen** | ✅ Full | litellm interception catches all LLM calls |
-| **Smolagents** | 🧪 Experimental | Manager Agent reasoning-loop detection |
+| **Smolagents** | ✅ Supported | Manager Agent reasoning-loop detection* |
 
-**Best fit:** local development, CLI agents, and supervised workflows where a human can act on a HITL prompt. For fully headless production APIs where blocking for input isn't an option, pair SHACKLE (dev/test) with an automated override at deploy time.
+<sub>\* The core litellm and BaseTool hooks are stable. The newer hooks (CrewAI `Agent.execute_task`, Smolagents reasoning-loop detection) are tracked with per-hook maturity notes in [INTEGRATIONS.md](INTEGRATIONS.md).</sub>
+
+**Deployment modes:** v1 runs in-process — ideal for development, CLI agents, and supervised workflows where a human can act on the HITL prompt. For headless production, the [v2 runtime](v2/README.md) moves decisions to a sidecar daemon with distributed budget state, Ed25519-signed audit logs, and remote HITL control. Same SP/1.0 contract in both modes.
 
 ---
 
