@@ -886,7 +886,7 @@
     <div class="feature-item">
       <div class="icon">🔀</div>
       <h4>Cross-Framework</h4>
-      <p>CrewAI ✅ LangGraph ✅ AutoGen ✅ Smolagents 🧪 — one decorator, all frameworks.</p>
+      <p>CrewAI ✅ LangGraph ✅ AutoGen ✅ Smolagents ✅ — one decorator, all frameworks.</p>
     </div>
   </div>
 </section>
@@ -1145,7 +1145,7 @@
       </div>
 
       <ol class="cert-steps">
-        <li><strong>Run the suite.</strong> Execute the conformance fixtures against your runtime: <code>pytest v2/tests/test_conformance.py</code>.</li>
+        <li><strong>Run the suite.</strong> Execute the conformance fixtures against your runtime: <code>pytest tests/test_conformance.py</code> (Core / HITL), plus <code>pytest v2/tests/test_v2_conformance.py</code> for the Sovereign level.</li>
         <li><strong>Capture the evidence.</strong> SHACKLE emits a per-fixture pass/fail report with the fixture hashes verified. That report is your reproducible conformance artifact.</li>
         <li><strong>Submit for listing.</strong> Open a certification request with your report to be added to the public SHACKLE Conformance Registry.</li>
         <li><strong>Get listed.</strong> Verified runtimes are published with the level achieved, SP/1.0 version, and date.</li>
