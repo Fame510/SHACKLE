@@ -12,7 +12,7 @@ setup(
     url="https://github.com/Fame510/SHACKLE",
     project_urls={
         "Bug Reports": "https://github.com/Fame510/SHACKLE/issues",
-        "Commercial Licensing": "mailto:docspoc101@gmail.com",
+        "Commercial Licensing": "https://github.com/Fame510/SHACKLE/blob/main/README.md#-author--license",
     },
     packages=find_packages(),
     python_requires=">=3.10",

@@ -28,6 +28,8 @@ dependencies = [
 dev = [
     "pytest>=7.0.0",
     "pytest-asyncio>=0.23.0",
+    "hypothesis>=6.0.0",
+    "httpx>=0.24.0",
 ]
 
 [tool.pytest.ini_options]
@@ -37,7 +39,7 @@ asyncio_mode = "auto"
 Homepage = "https://github.com/Fame510/SHACKLE"
 Repository = "https://github.com/Fame510/SHACKLE"
 "Bug Reports" = "https://github.com/Fame510/SHACKLE/issues"
-"Commercial Licensing" = "mailto:docspoc101@gmail.com"
+"Commercial Licensing" = "https://github.com/Fame510/SHACKLE/blob/main/README.md#-author--license"
 
 [tool.setuptools.packages.find]
 where = ["."]

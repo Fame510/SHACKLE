@@ -66,6 +66,13 @@ class ExecutionState:
     total_tool_calls: int = 0
     tool_history: Dict[Tuple[str, str], int] = field(default_factory=dict)
     last_decision: Tuple[str, str] = ("ALLOW", "within_thresholds")  # SP/1.0 decide() verdict
+    # SP/1.0 decide() reads state.circuit_tripped and state.seen_nonces. Before
+    # SP/1.0.1 the runtime hardcoded both to False/[] when calling decide(), so
+    # the circuit-open and replay rules were structurally unreachable from the
+    # tool path no matter what the deployment did. They are real fields now.
+    circuit_tripped: bool = False
+    circuit_trip_reason: str = ""
+    seen_nonces: List[Any] = field(default_factory=list)
     # Per-state RLock guards every read-modify-write of the fields above.
     # The previous design mutated total_cost, input_tokens, output_tokens,
     # total_tool_calls, and tool_history without any synchronization, so
@@ -76,6 +83,27 @@ class ExecutionState:
     # another LLM call on the same Guard's state. Each Guard scope gets its
     # own state, so distinct Guard instances never contend.
     _lock: "threading.RLock" = field(default_factory=threading.RLock)
+
+    def trip_circuit(self, reason: str) -> None:
+        """Latch the circuit open. Every later decide() consultation DENYs."""
+        with self._lock:
+            if not self.circuit_tripped:
+                self.circuit_tripped = True
+                self.circuit_trip_reason = reason
+
+    def reset_circuit(self) -> None:
+        """Clear a latched circuit. Only a human Resume may call this."""
+        with self._lock:
+            self.circuit_tripped = False
+            self.circuit_trip_reason = ""
+
+    def record_nonce(self, nonce: Any) -> None:
+        """Record a nonce as consumed so a replay of it is denied."""
+        if nonce is None:
+            return
+        with self._lock:
+            if nonce not in self.seen_nonces:
+                self.seen_nonces.append(nonce)
 
 
 class ShackleInterrupt(Exception):
@@ -126,16 +154,28 @@ class TriggerEngine:
         self.timeout_seconds = timeout_seconds
         self.max_tool_calls = max_tool_calls
 
-    def _consult_decide(self, tool_name: str, effective_count: int, state: ExecutionState) -> Tuple[str, str]:
+    def _consult_decide(
+        self,
+        tool_name: str,
+        effective_count: int,
+        state: ExecutionState,
+        params: Optional[Dict[str, Any]] = None,
+        nonce: Any = None,
+        estimated_cost_usd: float = 0.0,
+    ) -> Tuple[str, str]:
         """Invoke the SP/1.0 reference decide() with runtime-derived inputs.
 
         Builds the (config, state, call) shape decide() expects from live
         TriggerEngine/ExecutionState values so the runtime and the published
-        conformance vectors share ONE decision surface. Returns decide()'s
-        (verdict, reason). Enforcement still flows through the explicit
-        ShackleInterrupt raises below (which decide() agrees with for the
-        budget/repeat cases); this call guarantees the product actually runs
-        the standard rather than a parallel re-implementation.
+        conformance vectors share ONE decision surface, and returns decide()'s
+        (verdict, reason) — which evaluate_tool_call() then ENFORCES.
+
+        Before SP/1.0.1 this method hardcoded ``circuit_tripped: False``,
+        ``seen_nonces: []`` and ``params: {}``. Three of decide()'s ten rules
+        (circuit_open, duplicate_nonce, malformed_input) and its opaque-context
+        rule were therefore unreachable from the tool path by construction: the
+        runtime asked the standard a question whose answer it had already
+        pre-decided. All four inputs are now live.
         """
         config = {
             "budget_usd": self.budget,
@@ -143,18 +183,26 @@ class TriggerEngine:
         }
         remaining = max(self.budget - state.total_cost, 0.0)
         decide_state = {
-            "circuit_tripped": False,
-            "seen_nonces": [],
+            "circuit_tripped": state.circuit_tripped,
+            "seen_nonces": list(state.seen_nonces),
             "budget_initial_usd": self.budget,
             "budget_remaining_usd": remaining,
             "repeat_counts": {tool_name: effective_count},
             "last_tool_name": tool_name,
         }
-        call = {"tool_name": tool_name, "params": {}}
+        call = {
+            "tool_name": tool_name,
+            "params": params if params is not None else {},
+            "nonce": nonce,
+            "estimated_cost_usd": estimated_cost_usd,
+        }
         try:
             return _sp_decide(config, decide_state, call)
-        except Exception:  # pragma: no cover - decide() is total, but never let it break the run
-            return ("ALLOW", "decide_unavailable")
+        except Exception as e:  # pragma: no cover - decide() is total; never fail open
+            logger.warning(
+                "SHACKLE: decide() raised on the tool path (%r); failing closed.", e,
+            )
+            return ("DENY", "decide_unavailable_fail_closed")
 
     def evaluate_llm_call(self, model: str, input_tokens: int, output_tokens: int, state: ExecutionState) -> None:
         # CRITICAL SECTION: the entire read-decide-mutate-check sequence runs
@@ -239,7 +287,28 @@ class TriggerEngine:
                     details={"model": model, "current_cost": state.total_cost, "limit": self.budget,
                               "input_tokens": state.input_tokens, "output_tokens": state.output_tokens})
 
-    def evaluate_tool_call(self, agent_name: str, tool_name: str, tool_input: Any, state: ExecutionState) -> None:
+    # decide() reason -> ShackleInterrupt.trigger_type. Any reason absent from
+    # this table still DENIES (catch-all DECIDE_DENY below); the table only
+    # controls how the denial is LABELLED, never whether it is enforced.
+    _DENY_TRIGGERS = {
+        "max_repeat_exceeded": "REPETITIVE_TOOL_CALL",
+        "budget_exhausted": "BUDGET_EXCEEDED",
+        "budget_overrun": "BUDGET_OVERRUN",
+        "circuit_open": "CIRCUIT_OPEN",
+        "policy_violation:malformed_input": "POLICY_VIOLATION",
+        "policy_violation:duplicate_nonce": "DUPLICATE_NONCE",
+        "policy_violation:duplicate_resume_no_effect": "POLICY_VIOLATION",
+    }
+
+    def evaluate_tool_call(
+        self,
+        agent_name: str,
+        tool_name: str,
+        tool_input: Any,
+        state: ExecutionState,
+        nonce: Any = None,
+        estimated_cost_usd: float = 0.0,
+    ) -> None:
         # CRITICAL SECTION: total_tool_calls, tool_history[key] = get + 1,
         # and last_decision are all racy under concurrent tool invocations
         # (e.g. a thread-pool executor inside the agent framework dispatching
@@ -264,19 +333,43 @@ class TriggerEngine:
                                  ("error", "failed", "unauthorized", "401", "403", "500", "timeout"))
             effective_count = count + (1 if is_error_loop and count >= 2 else 0)
 
-            # ---- SP/1.0: consult the reference decision function ----
-            # Map live runtime state onto decide()'s (config, state, call) contract and
-            # record its verdict. This makes core.py literally exercise the same decision
-            # surface the conformance fixtures verify, on every tool call.
-            sp_verdict, sp_reason = self._consult_decide(tool_name, effective_count, state)
+            # ---- SP/1.0: consult the reference decision function AND ENFORCE IT ----
+            # Map live runtime state onto decide()'s (config, state, call) contract
+            # and act on its verdict. Before SP/1.0.1 the verdict was computed,
+            # stored to state.last_decision, and then ignored: the raises below
+            # re-implemented the repeat rule independently, so a DENY that only
+            # decide() could see (circuit_open, duplicate_nonce, malformed_input)
+            # was recorded on the audit trail while the call executed anyway.
+            params = tool_input if isinstance(tool_input, dict) else {"tool_input": input_key}
+            sp_verdict, sp_reason = self._consult_decide(
+                tool_name, effective_count, state,
+                params=params, nonce=nonce, estimated_cost_usd=estimated_cost_usd,
+            )
             state.last_decision = (sp_verdict, sp_reason)
 
-            if effective_count >= self.max_repeat_calls:
+            details = {"agent": agent_name, "tool": tool_name, "input": input_key[:200],
+                       "call_count": count, "error_loop": is_error_loop,
+                       "decide_reason": sp_reason}
+
+            if sp_verdict == "DENY":
+                trigger = self._DENY_TRIGGERS.get(sp_reason, "DECIDE_DENY")
+                if trigger == "REPETITIVE_TOOL_CALL":
+                    message = (f"Loop of Death detected: '{tool_name}' called "
+                               f"{count}x with identical input")
+                else:
+                    message = f"SHACKLE denied '{tool_name}': {sp_reason}"
+                raise ShackleInterrupt(message=message, trigger_type=trigger,
+                                       state=state, details=details)
+
+            if sp_verdict == "HITL":
+                # Fail closed. decide() returns HITL for opaque/unevaluable
+                # context and for the configured HITL modes; the runtime must
+                # surface that to a human, never treat it as an ALLOW.
                 raise ShackleInterrupt(
-                    message=f"Loop of Death detected: '{tool_name}' called {count}x with identical input",
-                    trigger_type="REPETITIVE_TOOL_CALL", state=state,
-                    details={"agent": agent_name, "tool": tool_name, "input": input_key[:200],
-                              "call_count": count, "error_loop": is_error_loop})
+                    message=f"SHACKLE requires human review of '{tool_name}': {sp_reason}",
+                    trigger_type="HITL_REQUIRED", state=state, details=details)
+
+            state.record_nonce(nonce)
 
             if state.total_tool_calls >= self.max_tool_calls:
                 raise ShackleInterrupt(
@@ -326,6 +419,10 @@ def _handle_interrupt_sync(si: "ShackleInterrupt", state: ExecutionState,
     if action == "A":
         raise si
     if action == "R":
+        # An explicit human Resume is the ONLY thing that may unlatch the
+        # circuit. Without this, a Resume clears the counters but decide()
+        # keeps returning DENY:circuit_open on every subsequent call.
+        state.reset_circuit()
         if reset_cost:
             state.total_cost = 0.0
             state.input_tokens = 0
@@ -344,6 +441,10 @@ async def _handle_interrupt_async(si: "ShackleInterrupt", state: ExecutionState,
     if action == "A":
         raise si
     if action == "R":
+        # An explicit human Resume is the ONLY thing that may unlatch the
+        # circuit. Without this, a Resume clears the counters but decide()
+        # keeps returning DENY:circuit_open on every subsequent call.
+        state.reset_circuit()
         if reset_cost:
             state.total_cost = 0.0
             state.input_tokens = 0

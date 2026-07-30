@@ -125,7 +125,7 @@ MODEL C — Distributed (Enterprise)
 ┌──────────────────────────────────┐
 │    Policy Language (future)      │  ← DSL for guard rules
 ├──────────────────────────────────┤
-│    Decision Function             │  ← decide(state, call) → Verdict
+│    Decision Function             │  ← decide(config, state, call)
 ├──────────────────────────────────┤
 │    Message Protocol              │  ← This specification
 ├──────────────────────────────────┤
@@ -137,109 +137,247 @@ MODEL C — Distributed (Enterprise)
 
 ## 3. The Decision Function
 
+### 3.0 Which Function This Section Specifies
+
+> **Normative.** SP/1.0 specifies exactly one decision surface:
+>
+> ```
+> shackle/conformance.py :: decide(config, state, call) -> (verdict, reason)
+> ```
+>
+> This is the function the 15 published vectors in `fixtures/conformance.json`
+> encode, the function `tests/test_conformance.py` executes, the function
+> `shackle/core.py` consults on every LLM and tool call, and the function
+> `v2/daemon/decision.py` imports. An implementation is SHACKLE-conformant iff
+> it reproduces this function's `(verdict, reason)` pairs on the published
+> vectors.
+>
+> `v2/spec/decide.py` is a **forward-looking, non-normative** reference. It is
+> typed with dataclasses/enums, carries an argument order and layer numbering
+> of its own, and implements rules SP/1.0 does not certify (time windows,
+> global call caps, probabilistic denial). It is imported only by benchmarks.
+> Revisions §3.1–§3.5 of this document previously described *that* module;
+> they now describe the certified core, and the extra layers are documented as
+> non-normative in §3.7.
+
 ### 3.1 Core Function
 
-The decision function is the heart of SHACKLE. It is a pure function — no I/O, no side effects, no allocations in the hot path. It is human-auditable in under 10 minutes. It is under 200 lines of logic.
+The decision function is the heart of SHACKLE. It is a pure function — no I/O,
+no side effects, no hidden state, no clock, no randomness. Given the same
+`(config, state, call)` it returns the same `(verdict, reason)` forever.
 
 ```
 function decide(
-    state: SessionState,
-    call: ToolCall,
-    config: GuardConfig,
-    rng_float: float
-) → Verdict
+    config: Config,     # policy: budget_usd, max_repeat_calls, hitl_mode, ...
+    state:  State,      # session: circuit_tripped, seen_nonces, budget_*, ...
+    call:   Call        # proposal: tool_name, params, nonce, estimated_cost_usd
+) -> (verdict, reason)
+
+verdict ∈ { "ALLOW", "DENY", "HITL" }
+reason  ∈ a stable string vocabulary (§3.5)
 ```
 
-### 3.2 Decision Algorithm — 8 Stacked Layers
+`reason` is part of the contract, not a diagnostic. Two implementations that
+agree on every verdict but disagree on any reason are **not** conformant with
+each other: the reason is what an auditor and an incident responder read.
+
+### 3.2 Decision Algorithm — 10 Ordered Rules
+
+Rules are evaluated in order; the first match returns. The ordering is the
+specification — a runtime that applies the same rules in a different order is
+not conformant, because the reason it reports will differ.
 
 ```
-Layer 1: Circuit Breaker
+Rule 1: Canonicalizability
+    IF call.params cannot be deterministically canonicalized:
+        -> DENY("policy_violation:malformed_input")
+    Non-canonicalizable means, structurally: not a JSON object; a non-string
+    key; NaN or ±Infinity; a type JSON cannot represent; nesting deeper than
+    the implementation limit. Detection MUST be structural. An implementation
+    that only recognizes the reserved `__noncanonical__` marker used by the
+    language-neutral fixtures does not conform (see §3.8).
+
+Rule 2: Circuit Breaker
     IF state.circuit_tripped:
-        → DENY(CIRCUIT_OPEN)
+        -> DENY("circuit_open")
 
-Layer 2: Nonce Validation (Anti-Replay)
-    IF call.nonce IN state.seen_nonces:
-        → DENY(POLICY_VIOLATION)
+Rule 3: Anti-Replay
+    IF call.nonce IS NOT NULL AND call.nonce IN state.seen_nonces:
+        IF the pending transition is a resume of an already-terminal decision:
+            -> DENY("policy_violation:duplicate_resume_no_effect")
+        -> DENY("policy_violation:duplicate_nonce")
+    The nonce is a per-dispatch replay token. It MUST NOT be derived from the
+    call's content: two legitimate identical requests are not a replay.
 
-Layer 3: Budget Guard
-    IF config.budget_usd > 0:
-        IF state.budget_remaining_usd <= 0:
-            → DENY(BUDGET_EXHAUSTED)
-        IF hitl_mode == ON_THRESHOLD AND fraction <= threshold:
-            → HITL("budget threshold reached")
-        IF call.cost > state.budget_remaining:
-            IF hitl_mode IN (ON_DENY, ALWAYS):
-                → HITL("cost exceeds remaining budget")
-            → DENY(BUDGET_EXHAUSTED)
+Rule 4: HITL Transition Contract   (see §3.6)
+    IF state.pending_transition IS PRESENT:
+        -> resolve it, and return that result unconditionally.
 
-Layer 4: Repeat Call Guard
-    IF config.max_repeat_calls > 0:
-        IF is_repeat(call, state.last_call):
-            limit = max_repeat_calls
-            IF error_amplification AND has_error_signal(call):
-                limit = max(1, limit - 1)
-            IF repeat_count >= limit:
-                → DENY(MAX_REPEAT_EXCEEDED)
+Rule 5: Budget Exhausted
+    IF config.budget_usd > 0 AND state.budget_remaining_usd <= 0:
+        -> DENY("budget_exhausted")
 
-Layer 5: Time Window Guard
-    IF config.window_max_calls > 0:
-        IF window_count >= window_max_calls:
-            → DENY(WINDOW_EXCEEDED)
+Rule 5b: Budget Overrun
+    IF config.budget_usd > 0 AND call.estimated_cost_usd > 0
+       AND state.budget_remaining_usd - call.estimated_cost_usd < 0:
+        -> DENY("budget_overrun")
+    Distinct from Rule 5: budget remains, but not enough for THIS call. This
+    is the rule that makes concurrent enforcement possible — the runtime MUST
+    consult decide() with the PRE-call remaining so this fires before the
+    budget is mutated, not after it has already gone negative.
 
-Layer 6: Global Call Limit
-    IF config.max_total_calls > 0 AND total_calls >= max_total_calls:
-        → DENY(GLOBAL_LIMIT)
+Rule 6: Repeat Guard
+    IF config.max_repeat_calls IS SET
+       AND state.repeat_counts[call.tool_name] >= config.max_repeat_calls
+       AND state.last_tool_name == call.tool_name:
+        -> DENY("max_repeat_exceeded")
 
-Layer 7: Probabilistic Denial (Adversarial Hardening)
-    IF probabilistic_deny AND budget_ratio < 0.2:
-        IF rng < deny_jitter_ratio * (1.0 - budget_ratio):
-            → DENY(BUDGET_EXHAUSTED, probabilistic=true)
+Rule 7: HITL Always
+    IF config.hitl_mode == "always":
+        -> HITL("hitl_all_calls")
 
-Layer 8: HITL Always
-    IF hitl_mode == ALWAYS:
-        → HITL("HITL required for all calls")
+Rule 8: HITL Budget Threshold
+    IF config.hitl_mode == "on_threshold"
+       AND remaining / initial <= config.hitl_budget_threshold:
+        -> HITL("budget_threshold")
 
-Default:
-    → ALLOW
+Rule 9: Opaque Context  (fail closed)
+    IF any context-bearing binding in call.params is not deterministically
+       evaluable:
+        -> HITL("fail_closed:opaque_context")
+    A binding is opaque when a context-bearing key (ctx, context, opaque,
+    raw_context, blob — matched case- and whitespace-insensitively, at any
+    depth) carries either an explicit non-evaluable marker (opaque, unknown,
+    unevaluable, untestable) or a value the guard cannot introspect. The rule
+    is a key-class × value-class PRODUCT. Matching only the literal pair
+    {"ctx": "opaque"} does not conform; neither does matching any key named
+    "context" regardless of value, which over-blocks ordinary traffic.
+
+Rule 10: Default
+    -> ALLOW("within_thresholds")
 ```
 
-### 3.3 Mathematical Invariants (Must Hold Under All Inputs)
+**Note on Rule 4 vs Rule 5.** A human approval is evaluated *before* budget.
+This is a deliberate policy choice, not an oversight: an explicit,
+digest-bound, single-use human release outranks the automated ceiling.
+Deployments that require budget to be absolute MUST NOT populate
+`pending_transition` once `budget_remaining_usd` reaches zero.
 
-These 9 properties are verified by property-based testing (Hypothesis, Python) with 500+ randomly generated inputs each. Properties P1-P9 are **provably correct.**
+### 3.3 Invariants
 
-| # | Property | Formal Statement |
-|---|----------|-----------------|
-| **P1** | Budget monotonically non-increasing | ∀ calls: budget_after ≤ budget_before |
-| **P2** | Repeat counts non-decreasing | ∀ tool: repeat_count never decreases |
-| **P3** | Once tripped, always tripped | circuit_tripped ⇒ all subsequent verdicts = DENY |
-| **P4** | Budget never negative | budget_remaining ≥ 0 |
-| **P5** | Repeat limit triggers DENY | repeat_count ≥ max_repeat_calls ⇒ verdict = DENY |
-| **P6** | Fresh state ALLOWs first call | fresh SessionState + any ToolCall ⇒ ALLOW |
-| **P7** | Deterministic output | identical (state, call, config, rng) ⇒ identical Decision |
-| **P8** | HITL_ALWAYS produces HITL | hitl_mode = ALWAYS ∧ ¬circuit_tripped ⇒ verdict = HITL |
-| **P9** | Nonce uniqueness enforced | duplicate nonce ⇒ DENY |
+These properties are exercised by the published vectors and by property-based
+tests. They are **tested, not machine-proved** — there is no mechanized proof
+of this function, and any claim otherwise would be an overstatement.
+
+| # | Property | Statement |
+|---|----------|-----------|
+| **P1** | Totality | `decide()` returns a verdict for every input; it never raises, including on malformed, non-object, or non-serializable `params`. |
+| **P2** | Determinism | identical `(config, state, call)` ⇒ identical `(verdict, reason)`. No clock, no RNG, no I/O. |
+| **P3** | Circuit dominance | `circuit_tripped` ⇒ DENY for every call whose `params` are canonicalizable. |
+| **P4** | Replay refusal | a nonce already in `seen_nonces` ⇒ DENY. |
+| **P5** | Repeat limit | `repeat_counts[tool] ≥ max_repeat_calls` ∧ `last_tool_name == tool` ⇒ DENY. |
+| **P6** | Budget floor | no ALLOW can drive `remaining` below zero when the runtime supplies `estimated_cost_usd`. |
+| **P7** | HITL_ALWAYS | `hitl_mode == "always"` ∧ no higher-precedence rule ⇒ HITL. |
+| **P8** | Fail closed | context that cannot be evaluated ⇒ HITL, never a silent ALLOW. |
+| **P9** | Bound authorization | a `pending_transition` releases exactly one `(nonce, args_digest)` pair; every other call ⇒ DENY. |
+
+> **P6 is conditional and P3 is scoped.** A fresh state does *not* imply ALLOW:
+> a first-ever call carrying opaque context returns HITL, and one carrying
+> non-canonicalizable params returns DENY. Rule 1 precedes Rule 2, so a call
+> with malformed params reports `malformed_input` rather than `circuit_open`
+> even when the circuit is tripped — both are closed, but the reason differs
+> and the reason is normative.
 
 ### 3.4 Verdict Types
 
-| Verdict | Meaning | Agent Action |
-|---------|---------|-------------|
-| **ALLOW** | Execute as requested | Proceed with tool call |
-| **DENY** | Block execution | Abort, surface deny reason |
-| **HITL** | Human decision required | Pause, await human verdict via HITL console |
+| Verdict | Meaning | Runtime obligation |
+|---------|---------|--------------------|
+| **ALLOW** | Execute as requested | Proceed. |
+| **DENY** | Block execution | Do not execute. Do not mutate budget or counters on behalf of the call. Surface the reason. |
+| **HITL** | Human decision required | Do not execute. Escalate to a human. In a non-interactive deployment (proxy, daemon, CI) there is no human, so HITL MUST be treated as a block — never downgraded to ALLOW. |
 
-### 3.5 Deny Reasons
+### 3.5 Reason Vocabulary
 
-| Reason | Trigger |
-|--------|---------|
-| `CIRCUIT_OPEN` | Circuit breaker was previously tripped |
-| `BUDGET_EXHAUSTED` | Budget remaining ≤ 0 or cost > remaining |
-| `MAX_REPEAT_EXCEEDED` | Same tool + same params repeated too many times |
-| `WINDOW_EXCEEDED` | Too many calls in the current time window |
-| `GLOBAL_LIMIT` | Session-wide call limit reached |
-| `POLICY_VIOLATION` | Duplicate nonce (replay attack) |
-| `AUTH_FAILED` | Authentication failure |
+Reasons are lowercase, stable, and namespaced with `:` where a family exists.
 
-### 3.6 Error Signal Amplification
+| Reason | Verdict | Trigger |
+|--------|---------|---------|
+| `within_thresholds` | ALLOW | No rule matched. |
+| `circuit_open` | DENY | Circuit previously tripped. |
+| `budget_exhausted` | DENY | `remaining <= 0`. |
+| `budget_overrun` | DENY | This call's estimated cost exceeds `remaining`. |
+| `max_repeat_exceeded` | DENY | Same tool repeated past the limit. |
+| `policy_violation:malformed_input` | DENY | `params` not canonicalizable. |
+| `policy_violation:duplicate_nonce` | DENY | Replayed nonce. |
+| `policy_violation:duplicate_resume_no_effect` | DENY | Re-dispatch of an already-terminal transition. |
+| `hitl_transition:approve` | ALLOW | Authorized `(nonce, digest)` pair released. |
+| `hitl_transition:modify_successor` | ALLOW | The successor of a MODIFY, with the successor's arguments. |
+| `hitl_transition:reject` | DENY | Human rejected. |
+| `hitl_transition:superseded_original` | DENY | The original of a MODIFY tried to execute. |
+| `hitl_transition:terminal_no_effect` | DENY | Approval already consumed/expired/revoked. |
+| `hitl_transition:nonce_mismatch` | DENY | Call is not the authorized call. |
+| `hitl_transition:digest_mismatch` | DENY | Arguments differ from the approved arguments. |
+| `hitl_transition:unbound_authorization` | DENY | Approval bound neither a nonce nor a digest. |
+| `hitl_transition:unknown_decision` | DENY | Unrecognized human decision. |
+| `hitl_transition:defer_escalate` | HITL | Deferred or escalated. |
+| `hitl_all_calls` | HITL | `hitl_mode == "always"`. |
+| `budget_threshold` | HITL | Remaining fraction at or below threshold. |
+| `fail_closed:opaque_context` | HITL | Context not deterministically evaluable. |
+
+### 3.6 The HITL Transition Contract
+
+**A human approval is a single-use capability over one specific preimage. It
+is not a permission to call the tool.**
+
+`pending_transition` carries the human's `decision` plus the binding fields
+`original_nonce`, `original_args_digest`, `successor_nonce`,
+`successor_args_digest` and `terminal_status`. Resolution:
+
+1. `decision` not in {approve, reject, modify, defer, escalate}
+   → DENY `unknown_decision`. Forward compatibility is not a licence to execute.
+2. `terminal_status` is terminal ∧ this is a resume attempt
+   → DENY `duplicate_resume_no_effect`.
+3. `reject` → DENY. `defer` / `escalate` → HITL.
+4. `modify` → the authorized pair is `(successor_nonce, successor_args_digest)`;
+   a call matching `original_nonce` is DENIED as `superseded_original`.
+   `approve` → the authorized pair is `(original_nonce, original_args_digest)`,
+   and a terminal status DENIES as `terminal_no_effect`.
+5. If neither an authorized nonce nor an authorized digest is bound
+   → DENY `unbound_authorization`.
+6. Nonce mismatch → DENY. `canonical_hash(call.params)` ≠ authorized digest
+   → DENY. Otherwise → ALLOW.
+
+This is the machinery behind the invariant **history_visible ≠
+runtime_executable**: a decision that is legible in the audit trail is not
+thereby replayable at runtime.
+
+### 3.7 Non-Normative Layers
+
+`v2/spec/decide.py` additionally implements time-window limits
+(`WINDOW_EXCEEDED`), a session-wide call cap (`GLOBAL_LIMIT`), probabilistic
+denial under budget pressure, and error-signal amplification of the repeat
+threshold (§3.8). **None of these are certified by SP/1.0.** No published
+vector exercises them, the certified core does not implement them, and an
+implementation that omits them is fully conformant. They are described here so
+readers of that module know where its behaviour comes from, and are candidates
+for a future revision that ships vectors for them.
+
+### 3.8 Fixture Markers vs Structural Detection
+
+JSON cannot literally encode NaN, ±Infinity, or a non-string object key. The
+language-neutral fixtures therefore declare that class with a reserved marker,
+`{"__noncanonical__": true}`. **The marker is a fixture-encoding device, not
+the rule.** A conforming implementation must reject the underlying class
+structurally; passing `malformed_non_canonical_input` by special-casing the
+marker string is not conformance. `fixtures/conformance-1.0.1.json` and
+`tests/test_sp101_regressions.py` probe the structural behaviour directly.
+
+### 3.9 Error Signal Amplification — Non-Normative
+
+> **Non-normative (§3.7).** Error amplification lives in `shackle/core.py`
+> (which folds it into the `repeat_counts` it passes to `decide()`) and in
+> `v2/spec/decide.py`. The certified core has no error-signal concept: it
+> reads the repeat count it is given.
 
 SHACKLE detects error signals in tool parameters WITHOUT regex (no ReDoS attack surface). When `error_amplification` is enabled, the repeat call threshold is reduced by 1 if the parameters contain known error signals:
 
@@ -253,7 +391,7 @@ Error signals: 401, unauthorized, 403, forbidden, 500, 502, 503,
 
 This catches the "loop of death" — agent hits 401, retries, gets 401, retries — without waiting for the full repeat threshold.
 
-### 3.7 Probabilistic Denial (Adversarial Hardening)
+### 3.10 Probabilistic Denial (Adversarial Hardening) — Non-Normative
 
 When `probabilistic_deny` is enabled and the agent is below 20% budget, a random factor is introduced:
 
@@ -263,7 +401,15 @@ IF rng < probability:
     → DENY (appears as BUDGET_EXHAUSTED)
 ```
 
-This prevents adversarial agents from probing the exact budget threshold and gaming it. The denial appears identical to a real budget exhaustion, making it impossible to distinguish signal from noise.
+This prevents adversarial agents from probing the exact budget threshold and
+gaming it. The denial appears identical to a real budget exhaustion, making it
+impossible to distinguish signal from noise.
+
+> **Non-normative (§3.7).** This layer exists only in `v2/spec/decide.py`. It is
+> deliberately excluded from the certified core: it takes an `rng_float`
+> argument, so a decision surface that used it would no longer satisfy P2
+> (determinism) and could not be pinned by fixtures. A runtime that wants
+> jitter must apply it OUTSIDE `decide()`.
 
 ---
 
@@ -667,7 +813,11 @@ The Python reference implementation lives at:
 
 | Component | File | Status |
 |-----------|------|--------|
-| Decision function | `v2/spec/decide.py` | ✅ Production (187 lines) |
+| **Certified decision function** | `shackle/conformance.py` | ✅ Normative — the SP/1.0 surface (§3) |
+| Conformance vectors | `fixtures/conformance.json` | ✅ 15 vectors, hash-sealed |
+| SP/1.0.1 adversarial vectors | `fixtures/conformance-1.0.1.json` | ✅ Tightening probes |
+| Conformance harness | `tests/test_conformance.py` | ✅ Runs the vectors |
+| Forward-looking typed core | `v2/spec/decide.py` | ⬜ Non-normative (§3.7); benchmarks only |
 | Property-based tests | `v2/tests/test_decide_properties.py` | ✅ 18/18 passing |
 | Protocol definitions | `v2/protocol/shackle.proto` | ✅ Complete |
 | Service definitions | `v2/protocol/shackle_service.proto` | ✅ Complete |
@@ -688,6 +838,8 @@ def my_agent():
 ```
 
 Install: `pip install git+https://github.com/Fame510/SHACKLE.git`
+
+Verify conformance: `python tests/test_conformance.py`
 
 ---
 

@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import asyncio
 import functools
+import threading
 from typing import Any, Callable, Optional
 
 from shackle.core import (
@@ -70,6 +71,7 @@ def guard_tool_call(
     *,
     agent_name: str = "autogen",
     interactive_hitl: bool = False,
+    estimated_cost_usd: float = 0.0,
 ) -> None:
     """
     Evaluate a single tool call against the SHACKLE engine.
@@ -84,6 +86,7 @@ def guard_tool_call(
             tool_name=tool_name,
             tool_input=tool_input,
             state=state,
+            estimated_cost_usd=estimated_cost_usd,
         )
     except ShackleInterrupt as si:
         if interactive_hitl:
@@ -102,11 +105,20 @@ def wrap_tool(
     timeout_seconds: float = 180.0,
     max_tool_calls: int = 50,
     interactive_hitl: bool = False,
+    cost_per_call: float = 0.0,
+    cost_fn: Optional[Callable[..., float]] = None,
 ) -> Callable:
     """
     Decorator that guards any function (sync or async) as a SHACKLE-governed
     AutoGen tool. Each wrapped callable gets its own TriggerEngine + ExecutionState
     so repeat/budget/timeout limits are tracked per tool across invocations.
+
+    ``budget`` is enforced by charging each call ``cost_fn(*args, **kwargs)`` if
+    given, else ``cost_per_call``. Both default to 0, in which case a tool spends
+    nothing and only the repeat/timeout/call-count limits apply — which is the
+    pre-SP/1.0.1 behaviour, except that it is now what the signature says. The
+    old code accepted ``budget=`` and then never priced a call, so the budget
+    could not be reached and the parameter was decorative.
 
     Works with or without AutoGen installed.
     """
@@ -118,28 +130,71 @@ def wrap_tool(
             timeout_seconds=timeout_seconds,
             max_tool_calls=max_tool_calls,
         )
-        state = ExecutionState()
         tool_name = getattr(fn, "__name__", "autogen_tool")
+        # ExecutionState.start_time defaults to time.time() AT CONSTRUCTION.
+        # Building the state here — at decoration time, i.e. at import — meant
+        # timeout_seconds was measured from when the module was imported, not
+        # from when the tool was first used. A process that imports its tools
+        # at startup and runs an agent an hour later tripped TIMEOUT_REACHED on
+        # the very first call. The state is created on first invocation instead.
+        state_holder: list = []
+        state_lock = threading.Lock()
+
+        def _get_state() -> ExecutionState:
+            with state_lock:
+                if not state_holder:
+                    state_holder.append(ExecutionState())
+                return state_holder[0]
+
+        def _cost(args, kwargs) -> float:
+            if cost_fn is None:
+                return cost_per_call
+            return float(cost_fn(*args, **kwargs))
 
         if asyncio.iscoroutinefunction(fn):
 
             @functools.wraps(fn)
             async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
+                state = _get_state()
                 tool_input = _canonicalize_tool_input({"args": args, "kwargs": kwargs})
+                cost = _cost(args, kwargs)
                 guard_tool_call(engine, state, tool_name, tool_input,
-                                interactive_hitl=interactive_hitl)
-                return await fn(*args, **kwargs)
+                                interactive_hitl=interactive_hitl,
+                                estimated_cost_usd=cost)
+                result = await fn(*args, **kwargs)
+                if cost:
+                    with state._lock:
+                        state.total_cost += cost
+                return result
 
-            return async_wrapper
+            wrapper: Callable = async_wrapper
+        else:
 
-        @functools.wraps(fn)
-        def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
-            tool_input = _canonicalize_tool_input({"args": args, "kwargs": kwargs})
-            guard_tool_call(engine, state, tool_name, tool_input,
-                            interactive_hitl=interactive_hitl)
-            return fn(*args, **kwargs)
+            @functools.wraps(fn)
+            def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
+                state = _get_state()
+                tool_input = _canonicalize_tool_input({"args": args, "kwargs": kwargs})
+                cost = _cost(args, kwargs)
+                guard_tool_call(engine, state, tool_name, tool_input,
+                                interactive_hitl=interactive_hitl,
+                                estimated_cost_usd=cost)
+                result = fn(*args, **kwargs)
+                if cost:
+                    with state._lock:
+                        state.total_cost += cost
+                return result
 
-        return sync_wrapper
+            wrapper = sync_wrapper
+
+        def _reset() -> None:
+            """Drop the accumulated state (counters, spend, clock)."""
+            with state_lock:
+                state_holder.clear()
+
+        wrapper.shackle_engine = engine          # type: ignore[attr-defined]
+        wrapper.shackle_state = _get_state       # type: ignore[attr-defined]
+        wrapper.shackle_reset = _reset           # type: ignore[attr-defined]
+        return wrapper
 
     # Support both @wrap_tool and @wrap_tool(...)
     if func is not None and callable(func):

@@ -34,6 +34,7 @@ Usage (SDK, Option B - stateful engine):
 
 from __future__ import annotations
 
+import uuid
 from typing import Any, Dict, Optional
 
 from shackle.conformance import decide, canonical_hash
@@ -129,7 +130,21 @@ class ShackleGuardrail(CustomGuardrail):
             "messages": request_data.get("messages", []) or [],
             "tools": request_data.get("tools", []) or request_data.get("functions", []) or [],
         }
-        return {"tool_name": f"llm:{model}", "params": params, "nonce": canonical_hash(params)}
+        # The nonce is an ANTI-REPLAY token: it must be unique per dispatch.
+        # It was previously canonical_hash(params), i.e. derived from the
+        # request CONTENT, which conflated "the same message sent twice" with
+        # "the same message replayed". Two legitimate identical prompts (a
+        # retry after a 500, a deterministic re-ask, two users asking the same
+        # question) were denied as duplicate_nonce, while the repeat rule --
+        # which is the rule that actually governs loops -- was bypassed. The
+        # content digest is still carried, as args_digest, because that is what
+        # the HITL transition contract binds an approval to.
+        return {
+            "tool_name": f"llm:{model}",
+            "params": params,
+            "nonce": uuid.uuid4().hex,
+            "args_digest": canonical_hash(params),
+        }
 
     def _evaluate(self, request_data: Dict[str, Any]) -> None:
         call = self._build_call(request_data)
@@ -212,8 +227,16 @@ class ShackleEngineGuardrail(CustomGuardrail):
                 tool_name=f"llm:{model}",
                 tool_input=self._tool_input(request_data),
                 state=self.state,
+                nonce=uuid.uuid4().hex,
             )
         except ShackleInterrupt as si:
+            # A proxy has no interactive human to resume, so a block is final
+            # for this session: latch the circuit so decide() denies every
+            # subsequent call with circuit_open instead of silently re-running
+            # the whole rule stack. This mirrors Option A, which has always
+            # tripped, and is what makes ExecutionState.circuit_tripped a live
+            # input to decide() rather than a permanently-False constant.
+            self.state.trip_circuit(si.trigger_type)
             raise ShackleBlocked(
                 verdict=self.state.last_decision[0],
                 reason=si.trigger_type,

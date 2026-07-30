@@ -50,11 +50,26 @@ A runtime is **SHACKLE-conformant** iff it passes the published fixture set at
 
 **Layer scope:** the conformance-verified layer is this specification plus
 `fixtures/conformance.json` (15 vectors) and the reference `shackle/conformance.py::decide()`.
-The shipped `shackle/core.py` `@Guard` runtime calls that same `decide()` directly — it builds
-the `(config, state, call)` contract from its live `TriggerEngine`/`ExecutionState` and consults
-`decide()` on every evaluated tool call and every LLM call, recording the verdict on
-`state.last_decision`. "SP/1.0-conformant" refers to the spec, the fixtures, and the shipped
-runtime that runs against them — a single decision surface, not a parallel implementation.
+
+The shipped `shackle/core.py` `@Guard` runtime builds the `(config, state, call)` contract
+from its live `TriggerEngine`/`ExecutionState`, consults `decide()` on every evaluated tool
+call and every LLM call, records the verdict on `state.last_decision`, **and enforces it** —
+a non-ALLOW verdict raises `ShackleInterrupt` on both paths. "SP/1.0-conformant" refers to
+the spec, the fixtures, and the shipped runtime that runs against them: a single decision
+surface, not a parallel implementation.
+
+> **Scope correction (SP/1.0.1).** Through SP/1.0 that claim held for the LLM path only. On
+> the tool path the runtime computed the verdict, stored it, and then applied its own repeat
+> check — and it passed `decide()` a hardcoded `circuit_tripped: False`, `seen_nonces: []`
+> and `params: {}`, which made four of the ten rules unreachable there by construction. Both
+> defects are fixed in SP/1.0.1; `tests/test_sp101_regressions.py::TestRuntimeEnforcesDecide`
+> pins the behaviour. No published vector changed.
+
+**Revision SP/1.0.1** is a strict tightening: it only turns inputs that previously fell
+through to ALLOW into DENY or HITL. All 15 published vectors reproduce their SP/1.0
+`canonical_hash`, `expected_verdict` and `expected_reason` byte-for-byte. New adversarial
+vectors are published separately in `fixtures/conformance-1.0.1.json` so the "15 vectors"
+claim, and the third-party reproductions that cite it, stay exactly as published.
 
 > Independent verification of record: @nutstrut reproduced all fixture hashes independently
 > (2026-07-05) and published a runnable composition against the published set.

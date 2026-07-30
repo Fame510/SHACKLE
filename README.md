@@ -87,9 +87,9 @@ SHACKLE **amplifies sensitivity** when tool inputs contain error signals (`401`,
 | **CrewAI** | ✅ Full | litellm hook + BaseTool hook + Agent.execute_task hook* |
 | **LangChain / LangGraph** | ✅ Full | litellm (completion/acompletion) + BaseTool (run/arun) hooks, sync + async |
 | **AutoGen** | ✅ Full | litellm interception catches all LLM calls |
-| **Smolagents** | ✅ Supported | Manager Agent reasoning-loop detection* |
+| **Smolagents** | ⬜ Planned | No wrapper ships yet. Smolagents routes through litellm in most setups, so the litellm hook already applies; a native reasoning-loop hook is not implemented. |
 
-<sub>\* The core litellm and BaseTool hooks are stable. The newer hooks (CrewAI `Agent.execute_task`, Smolagents reasoning-loop detection) are tracked with per-hook maturity notes in [INTEGRATIONS.md](INTEGRATIONS.md).</sub>
+<sub>\* The core litellm and BaseTool hooks are stable. The newer hooks (CrewAI `Agent.execute_task`) are tracked with per-hook maturity notes in [INTEGRATIONS.md](INTEGRATIONS.md).</sub>
 
 **Deployment modes:** v1 runs in-process — ideal for development, CLI agents, and supervised workflows where a human can act on the HITL prompt. For headless production, the [v2 runtime](v2/README.md) moves decisions to a sidecar daemon with distributed budget state, Ed25519-signed audit logs, and remote HITL control. Same SP/1.0 contract in both modes.
 

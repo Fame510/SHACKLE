@@ -33,13 +33,33 @@ def test_a_allow_within_thresholds():
     assert g.state["repeat_counts"]["llm:gpt-4o"] == 1
 
 
-def test_a_duplicate_nonce_denied():
+def test_a_identical_content_is_not_a_replay():
+    """Two legitimate identical prompts are NOT a replay.
+
+    The nonce was previously canonical_hash(params), so resending the same
+    prompt (a retry after a 502, a deterministic re-ask, two users asking the
+    same thing) was denied as duplicate_nonce. Repetition is governed by the
+    repeat rule, not the anti-replay rule; with max_repeat_calls=99 neither
+    fires and both calls must pass.
+    """
     g = ShackleGuardrail(budget_usd=1.0, max_repeat_calls=99)
     g.check(_req(content="same"))
-    with pytest.raises(ShackleBlocked) as e:
-        g.check(_req(content="same"))  # identical -> same nonce -> replay DENY
-    assert e.value.verdict == "DENY"
-    assert "duplicate_nonce" in e.value.reason
+    g.check(_req(content="same"))  # must not raise
+    assert g.state["repeat_counts"]["llm:gpt-4o"] == 2
+    assert len(set(g.state["seen_nonces"])) == 2  # per-dispatch, not content-derived
+
+
+def test_a_replayed_nonce_denied():
+    """A genuinely replayed nonce is still denied."""
+    g = ShackleGuardrail(budget_usd=1.0, max_repeat_calls=99)
+    g.check(_req(content="first"))
+    replayed = g.state["seen_nonces"][0]
+    call = g._build_call(_req(content="second"))
+    call["nonce"] = replayed
+    from shackle.conformance import decide
+    verdict, reason = decide(g.config, g.state, call)
+    assert verdict == "DENY"
+    assert "duplicate_nonce" in reason
 
 
 def test_a_max_repeat_denied():

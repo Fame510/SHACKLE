@@ -5,7 +5,8 @@
   "description": "Language-neutral conformance fixtures for the SHACKLE decision core (decide()). Each fixture is a canonical preimage + expected typed output. Any implementation (SHACKLE, a CrewAI adapter, or a receipts layer) can run these vectors and diff results. Canonical hash = SHA-256 of json.dumps(params, sort_keys=True, separators=(',',':')). v1.1 adds the five HITL transition fixtures (approve/reject/modify/defer-escalate/duplicate-resume) from CONFORMANCE.md §3; invariant: history-visible is not runtime-executable. A pure reference implementation lives at shackle/conformance.py (decide()).",
   "canonicalization": {
     "hash": "sha256",
-    "serialization": "json, keys sorted ascending, separators (',',':'), UTF-8"
+    "serialization": "json, keys sorted ascending, separators (',',':'), UTF-8",
+    "vector_hash": "sha256(json.dumps(vector_without_vector_hash, sort_keys=True, separators=(',',':'), ensure_ascii=False, allow_nan=False).encode('utf-8')).hexdigest()"
   },
   "fixtures": [
     {
@@ -32,7 +33,8 @@
       },
       "canonical_hash": "f487a46f520575a76a1537f2235bd32acdefa067fc54a69d7e85962650ac7efc",
       "expected_verdict": "ALLOW",
-      "expected_reason": "within_thresholds"
+      "expected_reason": "within_thresholds",
+      "vector_hash": "23cddfbf4ace53d2539e4f4d1a47f5c1c66e2df5ca87c0fa7ff880782723f6da"
     },
     {
       "name": "deny_budget_exhausted",
@@ -55,7 +57,8 @@
       },
       "canonical_hash": "59af4f9ca49e17c7ea781520b47d4a2d1e5ba67e1f4a650fcd4556c79281c0b4",
       "expected_verdict": "DENY",
-      "expected_reason": "budget_exhausted"
+      "expected_reason": "budget_exhausted",
+      "vector_hash": "42d80193582daf4e459d7391e82fbb3547103593659d2030d3fb84a181b77c33"
     },
     {
       "name": "deny_max_repeat",
@@ -82,7 +85,8 @@
       },
       "canonical_hash": "3adb796318d4420341c3755e2d1c486f9e31d0cc0150ba75e05e1d43ec0de3cd",
       "expected_verdict": "DENY",
-      "expected_reason": "max_repeat_exceeded"
+      "expected_reason": "max_repeat_exceeded",
+      "vector_hash": "1ee04e23faabf95bf59389f77169ce290364d6e769c1ad5981631ee140fa897b"
     },
     {
       "name": "deny_circuit_open",
@@ -103,7 +107,8 @@
       },
       "canonical_hash": "344f09fbeb62ddddb91ac596d5668e8cb1c3b7b191c36236de5e9d0e3d837a5b",
       "expected_verdict": "DENY",
-      "expected_reason": "circuit_open"
+      "expected_reason": "circuit_open",
+      "vector_hash": "4c65ae2a5b85456962426e81ad35a81da9507ab81d5aece9d42dc82654e3e9af"
     },
     {
       "name": "deny_duplicate_nonce",
@@ -128,7 +133,8 @@
       },
       "canonical_hash": "dd9cdf1ca09c43c043600ea0c55c43087ba42a2c306800a55d69d5535df8252e",
       "expected_verdict": "DENY",
-      "expected_reason": "policy_violation:duplicate_nonce"
+      "expected_reason": "policy_violation:duplicate_nonce",
+      "vector_hash": "e2bcd4503bc9b1ecd4b6831ce52badb11cbe60a59dc9ef3ded2683f9765fc8cf"
     },
     {
       "name": "hitl_threshold",
@@ -153,7 +159,8 @@
       },
       "canonical_hash": "e5e14e86ecd8af34138ec1cbb11f3c7d91b8a08f0b2c16d50db02c9c437bfd83",
       "expected_verdict": "HITL",
-      "expected_reason": "budget_threshold"
+      "expected_reason": "budget_threshold",
+      "vector_hash": "6cc0731c9b6127c121c7fcbbc7a442359ef93376503632ced6026b12fc7fbfd9"
     },
     {
       "name": "hitl_always",
@@ -177,7 +184,8 @@
       },
       "canonical_hash": "5788c7b1d89e5fef76c74725b5dd91dbc26e4649c47378fe62c0e228246e32ea",
       "expected_verdict": "HITL",
-      "expected_reason": "hitl_all_calls"
+      "expected_reason": "hitl_all_calls",
+      "vector_hash": "18e156c998d6f549e9f9936a3d994df7c67990b6f4277d9c789f212629c1ff73"
     },
     {
       "name": "malformed_non_canonical_input",
@@ -202,7 +210,8 @@
       "canonical_hash": "ea20e13e38878e8937cfbea618c724064b510859e2b3d45f4cd21546f4ba0268",
       "expected_verdict": "DENY",
       "expected_reason": "policy_violation:malformed_input",
-      "conformance_note": "Deterministic rejection of non-canonicalizable input. Well-formed equivalents must produce the canonical_hash shown."
+      "conformance_note": "Deterministic rejection of non-canonicalizable input. Well-formed equivalents must produce the canonical_hash shown.",
+      "vector_hash": "0a3581244df7d2b02cbd19c2e099654bbe03a822aff28f79da04a621947fbc6f"
     },
     {
       "name": "untestable_opaque_context",
@@ -226,7 +235,8 @@
       "canonical_hash": "a2e517b90a86d6646c6fa9b7821d1463550780d02b53c1900c99059edbaa29db",
       "expected_verdict": "HITL",
       "expected_reason": "fail_closed:opaque_context",
-      "conformance_note": "When context cannot be evaluated deterministically, implementations MUST fail closed (HITL or DENY), never silent ALLOW."
+      "conformance_note": "When context cannot be evaluated deterministically, implementations MUST fail closed (HITL or DENY), never silent ALLOW.",
+      "vector_hash": "c2b1a3e97a468a3283e514982be31261e0b1f84a5a2987e51d7827864d40f6a0"
     },
     {
       "call": {
@@ -260,7 +270,8 @@
           "terminal_status": "consumed_on_execute"
         },
         "seen_nonces": []
-      }
+      },
+      "vector_hash": "9ed8bc64822e1baaabf4b0564bb30eba105484610cfd15faf78481a26d86369b"
     },
     {
       "call": {
@@ -294,7 +305,8 @@
           "terminal_status": "rejected"
         },
         "seen_nonces": []
-      }
+      },
+      "vector_hash": "6f32d10bb7942a60e349541cef9c596b705e8551c92840a433fd820a8d8f9f09"
     },
     {
       "call": {
@@ -330,7 +342,8 @@
           "terminal_status": "superseded"
         },
         "seen_nonces": []
-      }
+      },
+      "vector_hash": "5e94dd077e73de6738f3508d1e5743738dd2201268922bd2ae1b57be518d193a"
     },
     {
       "call": {
@@ -364,7 +377,8 @@
           "terminal_status": "pending"
         },
         "seen_nonces": []
-      }
+      },
+      "vector_hash": "bc694d76aa4fd0cf3fe6830787aba74578afb526e50f07ef1fd0f63fbd7c8803"
     },
     {
       "call": {
@@ -401,7 +415,8 @@
         "seen_nonces": [
           25
         ]
-      }
+      },
+      "vector_hash": "a81e99a03338ad59dbca115fe749fc51d54d7071aee6aca0f1d60b1e0a165e36"
     },
     {
       "name": "concurrent_budget_overrun",
@@ -410,7 +425,7 @@
       },
       "state": {
         "budget_initial_usd": 1,
-        "budget_remaining_usd": 0.10,
+        "budget_remaining_usd": 0.1,
         "circuit_tripped": false,
         "seen_nonces": []
       },
@@ -426,7 +441,8 @@
       "canonical_hash": "c97a9cc83605d95347fb7766e9e605295c980f16ba19d860e4395c5dde312227",
       "expected_verdict": "DENY",
       "expected_reason": "budget_overrun",
-      "conformance_note": "CONCURRENCY CONTRACT: a single call whose estimated cost exceeds the PRE-call remaining budget MUST be denied with budget_overrun, even when remaining > 0 (i.e. the budget is not yet exhausted, but this call would push it negative). This is the spec-level guarantee that prevents the runtime from drifting past budget under concurrent calls: implementations MUST consult decide() with the pre-call remaining and the call's estimated_cost_usd, and honor the DENY verdict BEFORE mutating state. Without this check, a runtime that only verifies `total_cost >= budget` after a racy read-modify-write can silently let combined spend exceed the limit. Companion runtime test: tests/test_core.py::TestTriggerEngineLLM::test_concurrent_budget_no_overrun."
+      "conformance_note": "CONCURRENCY CONTRACT: a single call whose estimated cost exceeds the PRE-call remaining budget MUST be denied with budget_overrun, even when remaining > 0 (i.e. the budget is not yet exhausted, but this call would push it negative). This is the spec-level guarantee that prevents the runtime from drifting past budget under concurrent calls: implementations MUST consult decide() with the pre-call remaining and the call's estimated_cost_usd, and honor the DENY verdict BEFORE mutating state. Without this check, a runtime that only verifies `total_cost >= budget` after a racy read-modify-write can silently let combined spend exceed the limit. Companion runtime test: tests/test_core.py::TestTriggerEngineLLM::test_concurrent_budget_no_overrun.",
+      "vector_hash": "3af85641351f73f60150a1314a1d3001517ccac2e5188548013a14579f735ab5"
     }
   ],
   "transition_contract": {
@@ -440,5 +456,7 @@
     ],
     "spec_ref": "CONFORMANCE.md#3",
     "reference_impl": "shackle/conformance.py"
-  }
+  },
+  "revision": "SP/1.0.1",
+  "revision_note": "SP/1.0.1 adds the vector_hash field, which seals the WHOLE vector (name/config/state/call/canonical_hash/expected_verdict/expected_reason/conformance_note) under the same canonicalization. canonical_hash keeps its SP/1.0 meaning -- the digest of call.params only -- and every published value is byte-identical to SP/1.0. All 15 vectors reproduce their SP/1.0 verdicts unchanged; SP/1.0.1 only adds DENY outcomes for inputs that previously fell through to ALLOW, none of which are in this file."
 }

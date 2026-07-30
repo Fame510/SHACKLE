@@ -85,7 +85,8 @@ local SDK runs via `shackle.Guard`.
 ```python
 from shackle.autogen_shackle_wrapper import wrap_tool, create_shackle_agent
 
-@wrap_tool(budget=0.50, max_repeat_calls=3, timeout_seconds=180)
+@wrap_tool(budget=0.50, max_repeat_calls=3, timeout_seconds=180,
+           cost_per_call=0.01)            # priced, so `budget` is actually enforced
 def web_search(query: str):
     return real_search(query)             # raises ShackleBlocked if the loop trips
 
@@ -97,6 +98,24 @@ agent = create_shackle_agent(
 )
 # register wrap_tool-guarded tools on `agent`; every tool call is now governed.
 ```
+
+**Pricing a tool.** `budget` is only reachable if calls cost something. Give
+`wrap_tool` either `cost_per_call=<usd>` or `cost_fn=<callable>` receiving the
+tool's own arguments; both default to `0`, in which case only the repeat,
+timeout and call-count limits apply. Through SP/1.0 the `budget` argument was
+accepted and then never consulted — priced calls are how it becomes real.
+
+```python
+@wrap_tool(budget=5.00, cost_fn=lambda rows, **_: 0.002 * rows)
+def bulk_export(rows: int):
+    ...
+```
+
+**Timeout is measured from first use, not import.** The per-tool state is
+created lazily on the first invocation, so a process that imports its tools at
+startup and runs an agent an hour later no longer trips `TIMEOUT_REACHED` on
+call one. Call `web_search.shackle_reset()` to clear a tool's counters, spend
+and clock between runs; `web_search.shackle_engine` exposes the limits.
 
 Canonical tool-input dedup (`_canonicalize_tool_input`) ensures dict key ordering
 cannot evade loop detection.
