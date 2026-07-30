@@ -1,9 +1,30 @@
 {
   "sp_version": "SP/1.0",
-  "updated": "2026-07-07",
-  "note": "Public SHACKLE Conformance Registry. A runtime is listed only after its submitted conformance report is verified against the public fixtures. Anyone can re-run the fixtures to check any listing.",
-  "certified": [
+  "schema_version": "2",
+  "updated": "2026-07-29",
+  "note": "Public SHACKLE SP/1.0 Conformance Registry. Every entry belongs to a class that states exactly what it proves — no more, no less. Anyone can re-run the published fixtures to check any listing.",
+  "license": "Registry data and the SP/1.0 specification + fixtures are CC BY 4.0 (see LICENSE-SPEC.md). © 2026 Dante Bullock.",
+  "class_definitions": {
+    "reference_implementation": {
+      "proves": "This runtime defines the published fixtures.",
+      "never_proves": ""
+    },
+    "independent_reproduction": {
+      "proves": "A named party independently re-ran the published conformance surface and reproduced it: fixture hashes, deterministic decision output, canonical argument binding, deny-reason semantics.",
+      "never_proves": "Certification, implementation security, or production enforcement."
+    },
+    "certification": {
+      "proves": "Reserved — no entries yet. A runtime passed the full published fixture set via a submitted, verified conformance report.",
+      "never_proves": "Implementation security or production enforcement."
+    },
+    "production_enforcement": {
+      "proves": "Reserved — no entries yet; requires SP/1.0-Custody. Demonstrated fail-closed enforcement with capability custody in a deployed system.",
+      "never_proves": ""
+    }
+  },
+  "entries": [
     {
+      "class": "reference_implementation",
       "name": "SHACKLE Reference Implementation",
       "vendor": "Aeon_Dux / Sovereign Logic",
       "level": "SP/1.0-Sovereign",
@@ -11,6 +32,26 @@
       "date": "2026-07-07",
       "evidence": "https://github.com/Fame510/SHACKLE/blob/master/fixtures/conformance.json",
       "notes": "Authoritative reference runtime. Defines the SP/1.0 fixtures."
+    },
+    {
+      "class": "independent_reproduction",
+      "party": "@nutstrut (independent developer)",
+      "date": "2026-07-04",
+      "surface": "SP/1.0 9-fixture conformance set as published 2026-07-04",
+      "verifies": "Independent fixture reproduction: fixture hashes, deterministic decision output, canonical argument binding, deny-reason semantics.",
+      "does_not_verify": "Mandatory mediation, capability custody, bypass resistance, production security, or the v2 daemon as a shipped package.",
+      "evidence": "https://github.com/crewAIInc/crewAI/issues/6025#issuecomment-4911510831",
+      "permission": "Granted by the verifier (crewAI#6025, comment 5125138712); correction or withdrawal honored on request."
+    },
+    {
+      "class": "independent_reproduction",
+      "party": "@nutstrut (independent developer)",
+      "date": "2026-07-29",
+      "surface": "SP/1.0 15-vector conformance surface at commit 62dcbc7f, incl. v1 hash-chain tamper/reorder detection",
+      "verifies": "Independent fixture reproduction: fixture hashes, deterministic decision output, canonical argument binding, deny-reason semantics.",
+      "does_not_verify": "Mandatory mediation, capability custody, bypass resistance, production security, or the v2 daemon as a shipped package.",
+      "evidence": "https://github.com/crewAIInc/crewAI/issues/6025#issuecomment-5123740195",
+      "permission": "Granted by the verifier (crewAI#6025, comment 5125138712); correction or withdrawal honored on request."
     }
   ]
 }

@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SHACKLE Conformance Registry — SP/1.0</title>
-<meta name="description" content="Public registry of runtimes certified against the SHACKLE SP/1.0 conformance standard. Every listing is independently reproducible.">
+<meta name="description" content="Public conformance records for the SHACKLE SP/1.0 standard — reference implementation, independent reproductions, and certifications, each scoped to exactly what it proves. Every listing is independently reproducible.">
 <style>
   :root{--black:#0a0a0a;--dark-gray:#141414;--gray:#1e1e1e;--border:#2a2a2a;--white:#f5f5f5;--muted:#8a8a8a;--green:#00ff88;}
   *{margin:0;padding:0;box-sizing:border-box;}
@@ -24,14 +24,18 @@
   .btn{display:inline-block;padding:12px 20px;text-decoration:none;font-weight:600;font-size:14px;border:1px solid var(--green);}
   .btn-primary{background:var(--green);color:var(--black);}
   .btn-ghost{color:var(--green);background:transparent;}
-  table{width:100%;border-collapse:collapse;margin:32px 0 64px;font-size:14px;}
+  table{width:100%;border-collapse:collapse;margin:32px 0 24px;font-size:14px;}
   th,td{text-align:left;padding:14px 12px;border-bottom:1px solid var(--border);vertical-align:top;}
   th{color:var(--muted);text-transform:uppercase;font-size:12px;letter-spacing:1px;}
   .lvl{display:inline-block;padding:3px 8px;border:1px solid var(--green);color:var(--green);font-size:12px;white-space:nowrap;}
+  .cls{display:inline-block;padding:3px 8px;border:1px solid var(--muted);color:var(--white);font-size:12px;white-space:nowrap;}
   td a{color:var(--green);}
   .empty{color:var(--muted);padding:24px 0;}
   footer{border-top:1px solid var(--border);padding:32px 0;color:var(--muted);font-size:13px;}
   .note{color:var(--muted);font-size:13px;margin-top:8px;}
+  .classes{color:var(--muted);font-size:13px;margin:16px 0 64px;}
+  .classes p{margin-bottom:6px;}
+  .classes strong{color:var(--white);}
 </style>
 </head>
 <body>
@@ -42,8 +46,8 @@
 
 <section class="hero"><div class="container">
   <div class="label">// SP/1.0 Conformance Registry</div>
-  <h1>Certified Runtimes</h1>
-  <p class="intro">Every runtime listed here has submitted a conformance report verified against the public SP/1.0 fixtures. A listing is not a badge you buy — it is a claim anyone can re-run and check. That is the entire point.</p>
+  <h1>Conformance Records</h1>
+  <p class="intro">Conformance records for the SHACKLE SP/1.0 standard — the reference implementation, independent reproductions, and certifications, each scoped to exactly what it proves. A listing is not a badge you buy — it is a claim anyone can re-run and check. That is the entire point.</p>
   <div class="actions">
     <a class="btn btn-primary" href="https://github.com/Fame510/SHACKLE/issues/new?template=certification_request.yml">Get Certified &rarr;</a>
     <a class="btn btn-ghost" href="https://github.com/Fame510/SHACKLE/blob/master/README.md#-get-shackle-certified">How Certification Works</a>
@@ -52,33 +56,46 @@
 
 <div class="container">
   <table id="reg">
-    <thead><tr><th>Runtime</th><th>Vendor</th><th>Level</th><th>Ver</th><th>Date</th><th>Evidence</th></tr></thead>
-    <tbody id="reg-body"><tr><td class="empty" colspan="6">Loading registry…</td></tr></tbody>
+    <thead><tr><th>Entry</th><th>Class</th><th>Vendor / Party</th><th>Level</th><th>Ver</th><th>Date</th><th>Evidence</th></tr></thead>
+    <tbody id="reg-body"><tr><td class="empty" colspan="7">Loading registry…</td></tr></tbody>
   </table>
   <p class="note" id="reg-note"></p>
+  <div class="classes">
+    <p><strong>Entry classes — each proves exactly what it says, no more:</strong></p>
+    <p><strong>Reference implementation</strong> — the runtime that defines the published fixtures.</p>
+    <p><strong>Independent reproduction</strong> — a named party independently re-ran the published conformance surface and reproduced it (fixture hashes, deterministic decision output, canonical argument binding, deny-reason semantics). Not certification, implementation security, or production enforcement.</p>
+    <p><strong>Certification</strong> <em>(reserved — no entries yet)</em> — a runtime passed the full published fixture set via a submitted, verified conformance report. Not implementation security or production enforcement.</p>
+    <p><strong>Production enforcement</strong> <em>(reserved — requires SP/1.0-Custody)</em> — demonstrated fail-closed enforcement with capability custody in a deployed system.</p>
+  </div>
 </div>
 
 <footer><div class="container">
   SHACKLE / SP/1.0 &middot; Aeon_Dux &middot; Sovereign Logic. Listings are verified against
   <a href="https://github.com/Fame510/SHACKLE/blob/master/fixtures/conformance.json" style="color:var(--green)">public conformance fixtures</a>.
+  The SP-1.0 spec and fixtures are <a href="https://github.com/Fame510/SHACKLE/blob/master/LICENSE-SPEC.md" style="color:var(--green)">CC BY 4.0</a> — free to implement.
 </div></footer>
 
 <script>
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+var CLASS_LABEL={reference_implementation:'Reference implementation',independent_reproduction:'Independent reproduction',certification:'Certification',production_enforcement:'Production enforcement'};
 fetch('./registry.json?_=' + Date.now()).then(r=>r.json()).then(data=>{
   var body=document.getElementById('reg-body');
-  var rows=(data.certified||[]);
-  if(!rows.length){ body.innerHTML='<tr><td class="empty" colspan="6">No runtimes certified yet. Be the first.</td></tr>'; }
+  var rows=(data.entries||data.certified||[]);
+  if(!rows.length){ body.innerHTML='<tr><td class="empty" colspan="7">No entries yet. Be the first.</td></tr>'; }
   else { body.innerHTML=rows.map(function(r){
-    return '<tr><td>'+esc(r.name)+(r.notes?'<div style="color:#8a8a8a;font-size:12px">'+esc(r.notes)+'</div>':'')+'</td>'+
-    '<td>'+esc(r.vendor)+'</td><td><span class="lvl">'+esc(r.level)+'</span></td>'+
-    '<td>'+esc(r.version)+'</td><td>'+esc(r.date)+'</td>'+
+    var name = r.name || r.surface || '';
+    var detail = r.notes || (r.verifies ? 'Verifies: '+r.verifies+(r.does_not_verify?' Does not verify: '+r.does_not_verify:'') : '');
+    return '<tr><td>'+esc(name)+(detail?'<div style="color:#8a8a8a;font-size:12px">'+esc(detail)+'</div>':'')+'</td>'+
+    '<td><span class="cls">'+esc(CLASS_LABEL[r.class]||r.class||'')+'</span></td>'+
+    '<td>'+esc(r.vendor||r.party||'')+'</td>'+
+    '<td>'+(r.level?'<span class="lvl">'+esc(r.level)+'</span>':'&mdash;')+'</td>'+
+    '<td>'+esc(r.version||'')+'</td><td>'+esc(r.date)+'</td>'+
     '<td>'+(r.evidence?'<a href="'+esc(r.evidence)+'">verify</a>':'&mdash;')+'</td></tr>';
   }).join(''); }
   var note=document.getElementById('reg-note');
-  if(data.updated) note.textContent='Registry updated '+data.updated+' · '+(data.sp_version||'SP/1.0');
+  if(data.updated) note.textContent='Registry updated '+data.updated+' · '+(data.sp_version||'SP/1.0')+(data.schema_version?' · schema v'+data.schema_version:'');
 }).catch(function(){
-  document.getElementById('reg-body').innerHTML='<tr><td class="empty" colspan="6">Registry data unavailable. See <a href="https://github.com/Fame510/SHACKLE/blob/master/registry.json" style="color:#00ff88">registry.json</a>.</td></tr>';
+  document.getElementById('reg-body').innerHTML='<tr><td class="empty" colspan="7">Registry data unavailable. See <a href="https://github.com/Fame510/SHACKLE/blob/master/registry.json" style="color:#00ff88">registry.json</a>.</td></tr>';
 });
 </script>
 </body>
