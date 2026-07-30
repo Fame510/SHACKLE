@@ -1,5 +1,7 @@
 {
   "spec": "SHACKLE SP/1.0",
+  "license": "CC-BY-4.0",
+  "attribution": "SP/1.0 conformance fixtures © 2026 Dante Bullock — https://github.com/Fame510/SHACKLE (CC BY 4.0, see LICENSE-SPEC.md)",
   "description": "Language-neutral conformance fixtures for the SHACKLE decision core (decide()). Each fixture is a canonical preimage + expected typed output. Any implementation (SHACKLE, a CrewAI adapter, or a receipts layer) can run these vectors and diff results. Canonical hash = SHA-256 of json.dumps(params, sort_keys=True, separators=(',',':')). v1.1 adds the five HITL transition fixtures (approve/reject/modify/defer-escalate/duplicate-resume) from CONFORMANCE.md §3; invariant: history-visible is not runtime-executable. A pure reference implementation lives at shackle/conformance.py (decide()).",
   "canonicalization": {
     "hash": "sha256",

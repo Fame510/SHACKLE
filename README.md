@@ -1,6 +1,7 @@
 # <img src="logo.png" width="48" height="48" align="left" alt="SHACKLE logo" style="margin-right: 12px;"> ⛓️ SHACKLE
 
 [![License: AGPLv3](https://img.shields.io/badge/License-AGPLv3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
+[![Spec License: CC BY 4.0](https://img.shields.io/badge/Spec%20License-CC%20BY%204.0-lightgrey.svg)](LICENSE-SPEC.md)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 
 > **The runtime circuit breaker for autonomous AI agents.**
@@ -110,7 +111,12 @@ Run the proof yourself: `pytest tests/test_conformance.py` executes every SP/1.0
 
 SHACKLE, the `Required ⊆ Supported` conformance model, the `decide()` surface, and the SP/1.0 HITL transition contract are authored by **Dante Bullock ([@Fame510](https://github.com/Fame510))**, sole author, founder of Sovereign Logic, first published **2026-06-17**. Full provenance and attribution terms are in [CONFORMANCE.md](CONFORMANCE.md).
 
-Licensed under **AGPLv3** — free for individuals, hobbyists, and open-source projects. Shipping SHACKLE inside a closed-source or commercial product? A commercial license removes the copyleft obligation and adds SLA support.
+| Component | License |
+|---|---|
+| **SP-1.0 Specification & conformance fixtures** | [CC BY 4.0](./LICENSE-SPEC.md) — free to implement, attribution required |
+| **pyshackle runtime & reference implementation** | [AGPL-3.0](./LICENSE) — commercial licensing available |
+
+Implementing the SP/1.0 specification or running the published fixtures against your own runtime requires no license from us beyond attribution. The pyshackle code stays AGPLv3 — free for individuals, hobbyists, and open-source projects; shipping it inside a closed-source or commercial product requires a commercial license, which removes the copyleft obligation and adds SLA support.
 
 📧 **Commercial licensing, production deployment, or conformance guidance:** docspoc101@gmail.com
 

@@ -4,6 +4,11 @@
 **First published:** 2026-06-17.  **This document:** 2026-07-05.
 **Canonical source:** https://github.com/Fame510/SHACKLE
 
+> **License:** This specification is licensed under
+> [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) —
+> © 2026 Dante Bullock. Attribution required. See [LICENSE-SPEC.md](./LICENSE-SPEC.md).
+> The pyshackle software is licensed separately (AGPL-3.0 + commercial, see LICENSE).
+
 ---
 
 ## 1. Scope
