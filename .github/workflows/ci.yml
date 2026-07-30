@@ -30,7 +30,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install pytest rich
-          pip install -e . || echo "no installable package metadata; running against source tree"
+          pip install -e .
       - name: Run conformance + core tests
         run: |
           set +e
