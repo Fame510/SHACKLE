@@ -9,7 +9,7 @@
 
 **Status: stable.** SP/1.0 is a published standard: 15 hash-verifiable conformance fixtures, independently reproduced, with the reference implementation passing every vector in CI. The core hooks (litellm + BaseTool) are stable across CrewAI, LangChain/LangGraph, and AutoGen.
 
-> **Publication record.** Repository public **2026-06-10**. SP/1.0 specification published **2026-06-24**. 15-vector conformance suite published **2026-07-05**. `pyshackle 1.0.0` on PyPI **2026-07-20**. Fixture hashes independently reproduced by a third party on **2026-07-04**, and again against `master` on **2026-07-29**. Full dates, commit hashes, and the scope of what SP/1.0 does and does not claim: **[PROVENANCE.md](PROVENANCE.md)**.
+> **Publication record.** First release commit **2026-06-17** (`9fbf7c3a`); V2 foundation **2026-06-18**. SP/1.0 specification published **2026-06-24**. Conformance fixtures published **2026-07-03**, hash-chained ledger **2026-07-04**, 14-vector suite with canonical SHA-256 hashes **2026-07-05**. `pyshackle 1.0.0` on PyPI **2026-07-20**. SP/1.0.1 (fail-open paths closed, runtime enforces `decide()`) **2026-07-30**. Independently reproduced by a third party on **2026-07-04** (9-fixture set) and **2026-07-29** (15-vector surface at `62dcbc7f`). Full dates, commit hashes, and the scope of what SP/1.0 does and does not claim: **[PROVENANCE.md](PROVENANCE.md)**.
 
 ```bash
 pip install pyshackle
