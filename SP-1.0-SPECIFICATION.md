@@ -899,5 +899,28 @@ Verify conformance: `python tests/test_conformance.py`
 
 ---
 
+## Appendix D: Spend-Mediation Interoperability Profile — Non-Normative
+
+SP/1.0 mediates **tool calls**. A spend-mediation layer — a transaction or budget firewall — mediates **money**, and its decision object is typically `{amount, merchant, category}` rather than an action envelope. The two are not competing implementations of one surface. Most SP/1.0 conformance vectors have no counterpart in a spend firewall (nonce/replay, circuit breaker, opaque context, and every HITL transition), because those objects are not modeled there at all. A missing counterpart is a scope boundary, not a defect in either layer.
+
+**The shared surface is budget.** Where a spend-mediation layer and an SP/1.0 guard both observe a cumulative spend limit, their decisions are directly comparable. This profile defines exactly where:
+
+| Vector | Shared meaning | SP/1.0 verdict |
+|--------|----------------|----------------|
+| `within_thresholds` | Spend below every configured limit | `ALLOW` |
+| `budget_exhausted` | Configured budget fully consumed | `DENY` |
+| `budget_overrun` | Call would exceed remaining budget | `DENY` |
+
+An implementation is **spend-profile compatible** when it reproduces those three vectors from `fixtures/conformance.json` with matching verdicts. That claim covers the budget surface only; it says nothing about the remaining vectors and MUST NOT be presented as full SP/1.0 conformance.
+
+Two boundary rules apply to any layer claiming this profile:
+
+1. **Fail closed on malformed input.** Input that cannot be canonicalized resolves to `DENY`, never to a medium-severity flag. A severity signal is an observation; a verdict is enforcement.
+2. **Escalation is a verdict, not a severity.** `ALLOW | DENY | HITL` is not satisfied by `APPROVED | BLOCKED | FLAGGED`. A flag with no defined authorization path is not the HITL transition of §3.6.
+
+Fixtures for this profile are the sealed `vector_hash` entries as of SP/1.0.1 (2026-07-30), so an independent re-run diffs against published hashes rather than against prose. Profile discussion: `Significant-Gravitas/AutoGPT#12700`.
+
+---
+
 *SP/1.0 — Sovereign Logic, June 2026. Licensed under CC-BY 4.0.*  
 *Reference implementation: AGPLv3 + Commercial. Contact: docspoc101@gmail.com*
