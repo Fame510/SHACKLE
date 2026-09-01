@@ -4,30 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>SHACKLE Founding Program | AI Governance Infrastructure</title>
-  <meta name="description" content="SHACKLE Founding Program: infrastructure-grade AI agent governance, auditability, and enforceable runtime controls.">
+  <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
-  <main style="max-width:900px;margin:0 auto;padding:48px 24px;font-family:system-ui,sans-serif">
-    <h1>SHACKLE Founding Program</h1>
-    <p>Infrastructure-grade governance for AI agent systems. Enforce runtime boundaries, produce reproducible evidence, and make agent decisions auditable.</p>
-    <p><a href="https://buy.stripe.com/6oU28q54DbsXdpV6Hy9sk00">Start the $2,500 Audit Starter</a></p>
-    <h2>Founding Program tracks</h2>
-    <p><strong>Free Startup Track:</strong> For qualifying early teams building serious agent systems.</p>
-    <p><strong>Golden Ticket:</strong> A limited founding placement for a team whose deployment can help establish a durable governance reference.</p>
-    <h2>Apply</h2>
-    <p>Tell SHACKLE what you are deploying and why your team should be selected.</p>
-    <form action="mailto:docspoc101@gmail.com" method="post" enctype="text/plain">
-      <label>Name<br><input required name="name"></label><br>
-      <label>Email<br><input required type="email" name="email"></label><br>
-      <label>Company or project<br><input required name="company"></label><br>
-      <label>Website or repository<br><input name="website"></label><br>
-      <label>Agent stack<br><textarea required name="agent_stack"></textarea></label><br>
-      <label>Deployment stage<br><select required name="deployment_stage"><option value="">Select one</option><option>Prototype</option><option>Private beta</option><option>Production</option><option>Scaling production deployment</option></select></label><br>
-      <label>What governance problem must SHACKLE solve?<br><textarea required name="governance_problem"></textarea></label><br>
-      <label>Why should SHACKLE select your team?<br><textarea required name="why_selected"></textarea></label><br>
-      <label><input required type="checkbox" name="consent"> I consent to SHACKLE contacting me about this application.</label><br><br>
-      <button type="submit">Submit application</button>
-    </form>
-  </main>
-</body>
+  <div id="founding-cta" style="padding:16px;text-align:center;background:#101012;color:#f4f4f5;font-family:system-ui,sans-serif"><a href="https://buy.stripe.com/6oU28q54DbsXdpV6Hy9sk00" style="display:inline-block;padding:12px 18px;border-radius:10px;background:#f59e0b;color:#000;font-weight:700;text-decoration:none">Start the $2,500 Audit Starter</a></div><div id="root"></div>
+  
+  <script type="module" src="./app.js"></script>
+  <script>(function(){function m(a){var h=a.getAttribute("href");if(!h)return;try{var u=new URL(h,document.baseURI);if((u.protocol==="http:"||u.protocol==="https:")&&u.host!==location.host){a.target="_blank";a.rel="noopener noreferrer";}}catch(e){}}function s(){document.querySelectorAll("a[href]").forEach(m);}if(document.readyState!=="loading"){s();}else{document.addEventListener("DOMContentLoaded",s);}document.addEventListener("click",function(e){var a=e.target&&e.target.closest&&e.target.closest("a[href]");if(a){m(a);}},true);})();</script>
+  
+<section id="founding-application" style="max-width:760px;margin:4rem auto;padding:2rem;border:1px solid #3f3f46;border-radius:16px;background:#101012;color:#f4f4f5;font-family:system-ui,sans-serif"><h2>Apply to the Founding Program</h2><p>Apply for the Free Startup Track or a Golden Ticket founding slot. Tell us what you are deploying and why your team should be selected.</p><form action="mailto:docspoc101@gmail.com" method="post" enctype="text/plain"><p><label>Name<br><input required name="name"></label></p><p><label>Email<br><input required type="email" name="email"></label></p><p><label>Company or project<br><input required name="company_project"></label></p><p><label>Website or repository<br><input name="website_repo"></label></p><p><label>Agent stack<br><textarea required name="agent_stack"></textarea></label></p><p><label>Deployment stage<br><select required name="deployment_stage"><option value="">Select one</option><option>Prototype</option><option>Private beta</option><option>Production</option><option>Scaling production deployment</option></select></label></p><p><label>What governance problem must SHACKLE solve?<br><textarea required name="governance_problem"></textarea></label></p><p><label>Why should SHACKLE select you?<br><textarea required name="why_selected"></textarea></label></p><p><label><input required type="checkbox" name="consent"> I consent to SHACKLE contacting me about this application.</label></p><button type="submit">Submit application</button></form></section></body>
 </html>

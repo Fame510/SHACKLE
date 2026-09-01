@@ -1,0 +1,1 @@
+(async()=>{const parts=["app-1.chunk", "app-2.chunk", "app-3.chunk", "app-4.chunk"];const text=await Promise.all(parts.map(p=>fetch('./'+p).then(r=>{if(!r.ok)throw Error('Missing runtime chunk '+p);return r.text()})));(0,eval)(text.join('\n'));})();
