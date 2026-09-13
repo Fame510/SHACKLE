@@ -23,7 +23,16 @@ import uvicorn
 # Configuration
 DATABASE_PATH = "licenses.db"
 MASTER_SECRET = None  # Set via environment or init
-PUBLIC_KEY = None  # Ed25519 public key for signature verification
+PUBLIC_KEY = None  # DEPRECATED single-key slot; kept for back-compat only.
+# key_id -> base64 Ed25519 public key. Server-side trust anchor(s). A license is
+# only trusted if signed by a key present here. Populated at init from a
+# server-controlled source (env/secret store), NEVER from the request.
+TRUSTED_PUBLIC_KEYS: Dict[str, str] = {}
+# Optional server-side signing key (base64 Ed25519 private seed) used by the
+# license issuer/helper. Loaded from a secret store; never committed, never
+# returned in any response.
+SIGNING_PRIVATE_KEY = None
+SIGNING_KEY_ID = None
 
 app = FastAPI(
     title="SHACKLE-V2 License Server",
@@ -62,7 +71,12 @@ class LicenseRegistration(BaseModel):
     license_key: str
     metadata: Dict[str, Any]
     signature: str
-    public_key: str
+    # key_id identifies WHICH server-trusted public key signed this license.
+    # Verification uses TRUSTED_PUBLIC_KEYS[key_id], never a client-supplied key.
+    key_id: Optional[str] = None
+    # Audit-only record of any public key the client claimed. SECURITY: this is
+    # NEVER used for verification. Retained only for forensic/audit purposes.
+    claimed_public_key: Optional[str] = None
 
 
 # Database management
@@ -79,6 +93,76 @@ def get_db():
         raise
     finally:
         conn.close()
+
+
+def configure_trust(master_secret: str,
+                    trusted_public_keys: Optional[Dict[str, str]] = None,
+                    signing_private_key: Optional[str] = None,
+                    signing_key_id: Optional[str] = None) -> None:
+    """Configure server-side secrets/trust anchors from a controlled source.
+
+    Call once at startup with values loaded from environment / secret store.
+    NEVER hardcode these in the repo and NEVER accept them from a request.
+      master_secret        : HMAC secret for verify_checksum.
+      trusted_public_keys  : {key_id: base64 Ed25519 public key} the server trusts.
+      signing_private_key  : base64 Ed25519 private seed for issuing licenses.
+      signing_key_id       : key_id that pairs with signing_private_key.
+    """
+    global MASTER_SECRET, TRUSTED_PUBLIC_KEYS, SIGNING_PRIVATE_KEY, SIGNING_KEY_ID
+    MASTER_SECRET = master_secret
+    if trusted_public_keys:
+        TRUSTED_PUBLIC_KEYS = dict(trusted_public_keys)
+    SIGNING_PRIVATE_KEY = signing_private_key
+    SIGNING_KEY_ID = signing_key_id
+
+
+def load_trust_from_env() -> None:
+    """Load secrets from environment variables (safe for phone/dashboard deploys).
+
+    Env vars (set via your hosting platform's secret manager, not the repo):
+      SHACKLE_MASTER_SECRET          : HMAC secret.
+      SHACKLE_LICENSE_PUBKEYS        : JSON object {key_id: base64_pubkey}, OR a
+                                       single base64 pubkey (mapped to key_id 'default').
+      SHACKLE_LICENSE_PRIVATE_KEY    : base64 Ed25519 private seed (issuer only).
+      SHACKLE_LICENSE_SIGNING_KEY_ID : key_id paired with the private key.
+    Fails closed: if pubkeys are absent, TRUSTED_PUBLIC_KEYS stays empty and all
+    signature verification returns False.
+    """
+    import os
+    master = os.environ.get("SHACKLE_MASTER_SECRET")
+    pubkeys_raw = os.environ.get("SHACKLE_LICENSE_PUBKEYS")
+    trusted: Dict[str, str] = {}
+    if pubkeys_raw:
+        try:
+            parsed = json.loads(pubkeys_raw)
+            if isinstance(parsed, dict):
+                trusted = {str(k): str(v) for k, v in parsed.items()}
+            else:
+                trusted = {"default": str(parsed)}
+        except (ValueError, TypeError):
+            # Treat as a single bare base64 key.
+            trusted = {"default": pubkeys_raw}
+    configure_trust(
+        master_secret=master,
+        trusted_public_keys=trusted,
+        signing_private_key=os.environ.get("SHACKLE_LICENSE_PRIVATE_KEY"),
+        signing_key_id=os.environ.get("SHACKLE_LICENSE_SIGNING_KEY_ID"),
+    )
+
+
+def sign_license(license_key: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
+    """Issuer helper: sign a license with the server-held private key.
+
+    Returns {signature, key_id}. Raises if no signing key is configured. This is
+    how the operator mints licenses; customers never sign their own.
+    """
+    if not SIGNING_PRIVATE_KEY or not SIGNING_KEY_ID:
+        raise ValueError("No signing key configured (set SHACKLE_LICENSE_PRIVATE_KEY / _SIGNING_KEY_ID)")
+    payload = f"{license_key}:{json.dumps(metadata, sort_keys=True)}"
+    seed = base64.b64decode(SIGNING_PRIVATE_KEY)
+    private_key = ed25519.Ed25519PrivateKey.from_private_bytes(seed)
+    signature = private_key.sign(payload.encode())
+    return {"signature": base64.b64encode(signature).decode(), "key_id": SIGNING_KEY_ID}
 
 
 def init_database():
@@ -166,23 +250,44 @@ def verify_checksum(license_key: str, metadata: Dict[str, Any]) -> bool:
     return hmac.compare_digest(expected_checksum, parsed['checksum'])
 
 
-def verify_signature(license_key: str, metadata: Dict[str, Any], signature: str, public_key_b64: str) -> bool:
-    """Verify Ed25519 signature"""
+def verify_signature(license_key: str, metadata: Dict[str, Any], signature: str, key_id: Optional[str] = None) -> bool:
+    """Verify a license Ed25519 signature against a SERVER-SIDE trust anchor.
+
+    SECURITY: the signing public key is resolved from TRUSTED_PUBLIC_KEYS (a
+    server-controlled registry), NOT from anything supplied in the request. A
+    client-supplied key would let anyone forge a 'valid' signature over their
+    own payload. Fails CLOSED: if no trusted key is configured, or key_id is
+    unknown, verification returns False.
+    """
     try:
-        # Reconstruct signed payload
         payload = f"{license_key}:{json.dumps(metadata, sort_keys=True)}"
-        
-        # Decode public key and signature
-        public_key_bytes = base64.b64decode(public_key_b64)
         signature_bytes = base64.b64decode(signature)
-        
-        # Verify
-        public_key = ed25519.Ed25519PublicKey.from_public_bytes(public_key_bytes)
-        public_key.verify(signature_bytes, payload.encode())
-        return True
+
+        # Resolve trusted key(s). If key_id given, use exactly that key; else try
+        # every configured trusted key (supports rotation / multiple issuers).
+        candidates = []
+        if key_id is not None:
+            pk = TRUSTED_PUBLIC_KEYS.get(key_id)
+            if pk is not None:
+                candidates.append(pk)
+        else:
+            candidates = list(TRUSTED_PUBLIC_KEYS.values())
+
+        # Fail closed: no trusted key configured => trust nothing.
+        if not candidates:
+            return False
+
+        for pk_b64 in candidates:
+            try:
+                public_key_bytes = base64.b64decode(pk_b64)
+                public_key = ed25519.Ed25519PublicKey.from_public_bytes(public_key_bytes)
+                public_key.verify(signature_bytes, payload.encode())
+                return True
+            except Exception:
+                continue
+        return False
     except Exception:
         return False
-
 
 def sign_audit_entry(event_data: Dict[str, Any]) -> str:
     """Sign audit log entry with server key"""
@@ -259,7 +364,7 @@ async def register_license(registration: LicenseRegistration):
         registration.license_key,
         registration.metadata,
         registration.signature,
-        registration.public_key
+        registration.key_id
     ):
         raise HTTPException(status_code=400, detail="Invalid license signature")
     
@@ -284,7 +389,7 @@ async def register_license(registration: LicenseRegistration):
                 registration.metadata.get('node_binding'),
                 json.dumps(registration.metadata),
                 registration.signature,
-                registration.public_key,
+                (registration.claimed_public_key or ''),  # audit-only; NOT used for verification
                 datetime.utcnow().isoformat()
             ))
         
