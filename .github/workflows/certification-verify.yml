@@ -1,8 +1,23 @@
-# SHACKLE Certification - automated verification
+# SHACKLE Certification - automated intake and verification
+#
 # Trigger: a certification-request issue is opened/edited/labeled.
-# Action: run the PUBLIC SP/1.0 conformance fixtures in a clean environment and
-# post the reproducibility verdict back on the issue. Does NOT execute arbitrary
-# submitter code (that would be a security hole). Listing stays human-gated.
+#
+# What this does:
+#   1. Validates the SUBMISSION itself (required fields, level, public evidence
+#      URL, attestation, report shape) and tells the submitter exactly what to
+#      fix. This is the part that makes intake usable by real adopters.
+#   2. Re-runs the PUBLIC SP/1.0 fixtures from a clean clone, which is a
+#      REPO-SIDE reference signal, not a verdict on the submission.
+#   3. Emits a *proposed* registry entry as a build artifact.
+#
+# What this deliberately does NOT do:
+#   - Execute submitter code. That would be arbitrary code execution.
+#   - Grant certification or write registry.json. Listing is human-gated: a
+#     maintainer re-runs the submitter's linked evidence, then runs
+#     `apply-entry --i-am-a-maintainer` locally.
+#
+# Issue text is passed to steps via `env:`, never interpolated into a shell or
+# JS expression, because issue bodies are attacker-controlled.
 
 name: Certification Verify
 
@@ -18,6 +33,9 @@ on:
       - "tests/**"
       - "fixtures/**"
       - "shackle/**"
+      - "registry.json"
+      - "tools/certification_pipeline.py"
+      - ".github/ISSUE_TEMPLATE/certification_request.yml"
 
 permissions:
   issues: write
@@ -40,6 +58,35 @@ jobs:
           pip install pytest rich hypothesis
           pip install -e .
 
+      # Written via env, not shell interpolation: the body is untrusted input.
+      - name: Capture submission body
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          python - <<'PY'
+          import os, pathlib
+          pathlib.Path("submission.md").write_text(os.environ.get("ISSUE_BODY") or "")
+          PY
+          wc -c submission.md
+
+      - name: Validate submission
+        id: sub
+        run: |
+          set +e
+          python tools/certification_pipeline.py validate-submission \
+            --body-file submission.md \
+            --verdict PENDING \
+            --commit "${GITHUB_SHA}" \
+            --out submission_report.json > sub_stdout.txt 2>&1
+          code=$?
+          cat sub_stdout.txt
+          if [ "$code" -eq 0 ]; then
+            echo "complete=yes" >> "$GITHUB_OUTPUT"
+          else
+            echo "complete=no" >> "$GITHUB_OUTPUT"
+          fi
+          exit 0
+
       - name: Run SP/1.0 conformance fixtures (root + v2)
         id: conf
         run: |
@@ -61,42 +108,123 @@ jobs:
           fi
           exit 0
 
-      - name: Post verification verdict to issue
+      - name: Upload intake artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: certification-intake-${{ github.event.issue.number }}
+          path: |
+            submission_report.json
+            conf_out.txt
+          if-no-files-found: warn
+
+      - name: Post intake result to issue
         uses: actions/github-script@v7
+        env:
+          VERDICT: ${{ steps.conf.outputs.verdict }}
+          COMPLETE: ${{ steps.sub.outputs.complete }}
         with:
           script: |
             const fs = require('fs');
-            let out = '';
-            try { out = fs.readFileSync('conf_out.txt', 'utf8'); } catch (e) { out = '(no output captured)'; }
-            const tail = out.split('\n').slice(-40).join('\n');
-            const verdict = process.env.VERDICT;
-            const emoji = verdict === 'PASS' ? '\u2705' : '\u274c';
-            const body = [
-              '## ' + emoji + ' SP/1.0 fixture reproducibility: **' + verdict + '**',
-              '',
-              'This automated check re-ran the **public** SHACKLE conformance fixtures from a clean clone at commit `' + context.sha.slice(0,7) + '`.',
-              '',
-              verdict === 'PASS'
-                ? 'The reference fixtures pass. A maintainer will now compare your submitted report and linked evidence against these fixtures, and if your runtime reproduces them at the level claimed it will be added to registry.json and listed.'
-                : 'The reference fixtures did NOT pass in this run. This is a repo-side signal, not a judgment of your submission; a maintainer will investigate.',
-              '',
-              '<details><summary>conformance output (tail)</summary>',
-              '',
-              '```',
-              tail,
-              '```',
-              '</details>',
-              '',
-              '_Automated by the Certification Verify workflow. Listing remains human-reviewed by design._'
-            ].join('\n');
+            const read = (p) => { try { return fs.readFileSync(p, 'utf8'); } catch (e) { return ''; } };
+
+            const verdict = process.env.VERDICT || 'UNKNOWN';
+            const complete = process.env.COMPLETE === 'yes';
+
+            let problems = [];
+            let submission = null;
+            try {
+              const rep = JSON.parse(read('submission_report.json') || '{}');
+              problems = rep.problems || [];
+              submission = rep.submission || null;
+            } catch (e) { /* fall through to raw output */ }
+
+            const sha = context.sha.slice(0, 7);
+            const tail = read('conf_out.txt').split('\n').slice(-40).join('\n');
+            const lines = [];
+
+            lines.push('## Certification request received');
+            lines.push('');
+            lines.push('This is an **automated intake check**. It does not grant certification.');
+            lines.push('');
+
+            // 1. The part that is actually about this submission.
+            lines.push('### 1. Submission completeness ' + (complete ? '\u2705 complete' : '\u26a0\ufe0f needs changes'));
+            lines.push('');
+            if (complete) {
+              if (submission) {
+                lines.push('| field | value |');
+                lines.push('|---|---|');
+                lines.push('| Runtime | ' + submission.runtime + ' |');
+                lines.push('| Vendor | ' + submission.vendor + ' |');
+                lines.push('| Level claimed | `' + submission.level + '` |');
+                lines.push('| SP version | `' + submission.sp_version + '` |');
+                lines.push('| Evidence | ' + submission.evidence + ' |');
+                lines.push('');
+              }
+              lines.push('Everything required is present and well-formed. A maintainer will now');
+              lines.push('re-run your linked evidence against the published fixtures.');
+            } else {
+              lines.push('Please edit the issue to fix the following, then this check re-runs automatically:');
+              lines.push('');
+              for (const p of problems) lines.push('- ' + p);
+              if (!problems.length) {
+                lines.push('- (validator produced no structured output; see the workflow log)');
+              }
+            }
+            lines.push('');
+
+            // 2. The part that is about the repo, clearly labelled as such.
+            lines.push('### 2. Reference fixture self-check: `' + verdict + '`');
+            lines.push('');
+            lines.push('This re-ran **this repository\'s own** SP/1.0 fixtures from a clean clone at');
+            lines.push('commit `' + sha + '`. It confirms the reference surface you are being measured');
+            lines.push('against is intact. **It says nothing about your runtime.**');
+            lines.push('');
+            lines.push('<details><summary>reference conformance output (tail)</summary>');
+            lines.push('');
+            lines.push('```');
+            lines.push(tail || '(no output captured)');
+            lines.push('```');
+            lines.push('</details>');
+            lines.push('');
+
+            // 3. What certification actually requires.
+            lines.push('### 3. What happens next');
+            lines.push('');
+            lines.push('Listing in `registry.json` is **human-reviewed by design**. A maintainer must');
+            lines.push('reproduce your linked evidence against the published fixtures before any');
+            lines.push('entry is added. A `certification`-class entry proves that your runtime passed');
+            lines.push('the published fixture set via a verified report. It does **not** prove');
+            lines.push('implementation security or production enforcement.');
+            lines.push('');
+            lines.push('_Automated by the Certification Verify workflow._');
+
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              body
+              body: lines.join('\n')
             });
-        env:
-          VERDICT: ${{ steps.conf.outputs.verdict }}
+
+  registry:
+    # Guards the registry and the intake tooling itself.
+    if: github.event_name != 'issues'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest
+          pip install -e .
+      - name: Validate registry.json
+        run: python tools/certification_pipeline.py validate-registry registry.json
+      - name: Test the certification intake pipeline
+        run: PYTHONPATH=. python -m pytest tests/test_certification_pipeline.py -rA --tb=short
 
   conformance:
     # Runs on manual dispatch or push (no issue to comment on) - reports to the run summary.
