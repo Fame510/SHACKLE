@@ -23,16 +23,45 @@ logger = logging.getLogger(__name__)
 class LicenseGenerator:
     """Generate SHACKLE-ENT licenses with crypto validation"""
     
-    def __init__(self, master_secret: Optional[str] = None):
+    def __init__(
+        self,
+        master_secret: Optional[str] = None,
+        private_key_b64: Optional[str] = None,
+        key_id: Optional[str] = None,
+        allow_generate: bool = False,
+    ):
         """
         Initialize generator with master secret for HMAC validation
         
         Args:
-            master_secret: Master secret for license validation (keep secure!)
+            master_secret: HMAC secret. Falls back to SHACKLE_MASTER_SECRET, then
+                MASTER_SECRET, from the environment.
+            private_key_b64: base64 Ed25519 private seed of the STABLE issuer
+                key. Falls back to SHACKLE_LICENSE_PRIVATE_KEY.
+            key_id: identifier of the issuer key. Must match the key_id the
+                license server trusts in TRUSTED_PUBLIC_KEYS. Falls back to
+                SHACKLE_LICENSE_SIGNING_KEY_ID.
+            allow_generate: mint a NEW issuer identity instead of loading one.
+                Bootstrap only. Licenses signed by a freshly generated key are
+                unverifiable by any server that does not already trust it.
         """
-        if master_secret:
-            self.master_secret = master_secret.encode()
+        resolved_secret = (
+            master_secret
+            or os.environ.get("SHACKLE_MASTER_SECRET")
+            or os.environ.get("MASTER_SECRET")
+        )
+        if resolved_secret:
+            self.master_secret = resolved_secret.encode()
             self.generated_new = False
+        elif not allow_generate:
+            # Fail loud. Silently minting a throwaway secret produces licenses
+            # that no deployed server can validate, and the failure surfaces
+            # later at the paying customer instead of here.
+            raise ValueError(
+                "No master secret configured. Set SHACKLE_MASTER_SECRET, or pass "
+                "master_secret=, or use --bootstrap-issuer to mint a new issuer "
+                "identity."
+            )
         else:
             # Generate a new master secret if none provided.
             # SECURITY: never print the secret here. Emitting it to stdout leaks
@@ -47,8 +76,56 @@ class LicenseGenerator:
                 "file (or --show-secret); it is required for license validation."
             )
         
-        # Generate Ed25519 signing key pair
-        self.private_key = ed25519.Ed25519PrivateKey.generate()
+        # Ed25519 issuer signing key.
+        # SECURITY / CORRECTNESS: this key is LOADED, not generated per run. The
+        # license server verifies signatures against TRUSTED_PUBLIC_KEYS[key_id],
+        # so a new keypair on every invocation means every license it signs is
+        # rejected. The issuer identity must be stable and its private half must
+        # live in a secret manager, never in this repo.
+        resolved_private = private_key_b64 or os.environ.get("SHACKLE_LICENSE_PRIVATE_KEY")
+        resolved_key_id = key_id or os.environ.get("SHACKLE_LICENSE_SIGNING_KEY_ID")
+
+        if resolved_private:
+            try:
+                seed = base64.b64decode(resolved_private, validate=True)
+            except Exception as exc:
+                raise ValueError(
+                    "SHACKLE_LICENSE_PRIVATE_KEY is not valid base64."
+                ) from exc
+            if len(seed) != 32:
+                raise ValueError(
+                    "Issuer private key must be a 32-byte Ed25519 seed, "
+                    f"got {len(seed)} bytes after base64 decode."
+                )
+            self.private_key = ed25519.Ed25519PrivateKey.from_private_bytes(seed)
+            self.key_id = resolved_key_id or "default"
+            self.generated_new_signing_key = False
+            if not resolved_key_id:
+                logger.warning(
+                    "No SHACKLE_LICENSE_SIGNING_KEY_ID set; using key_id 'default'. "
+                    "It must match the key_id registered in the server's "
+                    "TRUSTED_PUBLIC_KEYS or verification will fail."
+                )
+        elif not allow_generate:
+            raise ValueError(
+                "No issuer signing key configured. Set SHACKLE_LICENSE_PRIVATE_KEY "
+                "(and SHACKLE_LICENSE_SIGNING_KEY_ID), or use --bootstrap-issuer "
+                "to mint a new issuer identity. Refusing to generate an ephemeral "
+                "key, because licenses signed with it cannot be validated."
+            )
+        else:
+            self.private_key = ed25519.Ed25519PrivateKey.generate()
+            self.key_id = resolved_key_id or (
+                f"issuer-{datetime.utcnow():%Y%m%d}-{secrets.token_hex(3)}"
+            )
+            self.generated_new_signing_key = True
+            logger.warning(
+                "Minted a NEW issuer signing key (key_id=%s). Register its public "
+                "half in the server's SHACKLE_LICENSE_PUBKEYS before issuing "
+                "licenses to customers.",
+                self.key_id,
+            )
+
         self.public_key = self.private_key.public_key()
     
     def generate_license(
@@ -111,6 +188,11 @@ class LicenseGenerator:
             "checksum": checksum,
             "metadata": metadata,
             "signature": signature_b64,
+            # key_id tells the server WHICH trusted public key to verify with.
+            # Send this on /api/v1/licenses/register.
+            "key_id": self.key_id,
+            # Audit/reference only. The server records it as claimed_public_key
+            # and NEVER uses it to verify a signature.
             "public_key": base64.b64encode(
                 self.public_key.public_bytes(
                     encoding=serialization.Encoding.Raw,
@@ -127,6 +209,29 @@ class LicenseGenerator:
         )
         return public_bytes.decode()
     
+    def export_public_key_b64(self) -> str:
+        """Export raw public key as base64 (the form TRUSTED_PUBLIC_KEYS uses)"""
+        return base64.b64encode(
+            self.public_key.public_bytes(
+                encoding=serialization.Encoding.Raw,
+                format=serialization.PublicFormat.Raw
+            )
+        ).decode()
+
+    def export_private_key_b64(self) -> str:
+        """Export the issuer private seed as base64 (KEEP SECRET!).
+
+        Only for bootstrap/custody handoff into a secret manager. Never log this,
+        never commit it, never return it from an API.
+        """
+        return base64.b64encode(
+            self.private_key.private_bytes(
+                encoding=serialization.Encoding.Raw,
+                format=serialization.PrivateFormat.Raw,
+                encryption_algorithm=serialization.NoEncryption(),
+            )
+        ).decode()
+
     def export_master_secret(self) -> str:
         """Export master secret (KEEP SECURE!)"""
         return self.master_secret.decode()
@@ -168,6 +273,49 @@ def generate_node_certificate(
     }
 
 
+def bootstrap_issuer(env_out: Optional[str] = None) -> Dict[str, str]:
+    """Mint a stable issuer identity and persist it as a deployment env block.
+
+    Writes SHACKLE_MASTER_SECRET, SHACKLE_LICENSE_PUBKEYS,
+    SHACKLE_LICENSE_PRIVATE_KEY and SHACKLE_LICENSE_SIGNING_KEY_ID to a 0600
+    file. Secret values go to that file only, never to stdout, so they stay out
+    of CI logs, shell scrollback and log aggregators.
+    """
+    generator = LicenseGenerator(allow_generate=True)
+    key_id = generator.key_id
+    pub_b64 = generator.export_public_key_b64()
+
+    env_lines = [
+        "# SHACKLE license server secrets. Move these into your host's secret",
+        "# manager (systemd EnvironmentFile, docker --env-file, or platform",
+        "# dashboard) and delete this file. NEVER commit it.",
+        f"SHACKLE_MASTER_SECRET={generator.export_master_secret()}",
+        f'SHACKLE_LICENSE_PUBKEYS={{"{key_id}":"{pub_b64}"}}',
+        f"SHACKLE_LICENSE_PRIVATE_KEY={generator.export_private_key_b64()}",
+        f"SHACKLE_LICENSE_SIGNING_KEY_ID={key_id}",
+        "",
+    ]
+
+    path = env_out or f"shackle-license-{key_id}.env"
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as fh:
+        fh.write("\n".join(env_lines))
+
+    # stdout carries only non-secret material.
+    print(json.dumps({
+        "key_id": key_id,
+        "trusted_public_key_b64": pub_b64,
+        "env_file": path,
+    }, indent=2))
+    print(
+        f"🔐 Issuer identity minted. Secrets written to {path} (mode 0600).\n"
+        f"   Load all four variables into the license server environment, restart\n"
+        f"   it, then confirm /health reports licensing_ready=true.",
+        file=sys.stderr,
+    )
+    return {"key_id": key_id, "public_key_b64": pub_b64, "env_file": path}
+
+
 def main():
     """CLI for license generation"""
     import argparse
@@ -175,7 +323,7 @@ def main():
     parser = argparse.ArgumentParser(
         description="SHACKLE-V2 License Key Generator"
     )
-    parser.add_argument("customer", help="Customer/organization name")
+    parser.add_argument("customer", nargs="?", help="Customer/organization name")
     parser.add_argument(
         "--tier",
         choices=["ENTERPRISE", "SOVEREIGN", "UNLIMITED"],
@@ -204,7 +352,25 @@ def main():
     )
     parser.add_argument(
         "--master-secret",
-        help="Master secret (will generate if not provided)"
+        help="Master secret (defaults to SHACKLE_MASTER_SECRET from the environment)"
+    )
+    parser.add_argument(
+        "--issuer-key",
+        help="base64 Ed25519 issuer private seed (defaults to "
+             "SHACKLE_LICENSE_PRIVATE_KEY). Prefer the environment over argv so "
+             "the key does not land in shell history or the process list."
+    )
+    parser.add_argument(
+        "--key-id",
+        help="Issuer key_id, must match the server's TRUSTED_PUBLIC_KEYS "
+             "(defaults to SHACKLE_LICENSE_SIGNING_KEY_ID)"
+    )
+    parser.add_argument(
+        "--bootstrap-issuer",
+        action="store_true",
+        help="Mint a NEW stable issuer identity (master secret + Ed25519 keypair "
+             "+ key_id) and write the deployment env block to a 0600 file. Run "
+             "this once, on the machine that will hold the secrets."
     )
     parser.add_argument(
         "--output",
@@ -223,9 +389,20 @@ def main():
     )
     
     args = parser.parse_args()
+
+    if args.bootstrap_issuer:
+        bootstrap_issuer()
+        return
+
+    if not args.customer:
+        parser.error("customer is required (or use --bootstrap-issuer)")
     
     # Initialize generator
-    generator = LicenseGenerator(master_secret=args.master_secret)
+    generator = LicenseGenerator(
+        master_secret=args.master_secret,
+        private_key_b64=args.issuer_key,
+        key_id=args.key_id,
+    )
     
     # Generate license
     license_data = generator.generate_license(
@@ -241,6 +418,8 @@ def main():
     # is a separate credential and is handled out-of-band below.
     output = {
         "license": license_data,
+        "key_id": generator.key_id,
+        "trusted_public_key_b64": generator.export_public_key_b64(),
         "public_key_pem": generator.export_public_key()
     }
     
