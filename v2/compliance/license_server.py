@@ -17,11 +17,17 @@ from datetime import datetime, timedelta
 from contextlib import contextmanager
 from cryptography.hazmat.primitives.asymmetric import ed25519
 from cryptography.hazmat.primitives import serialization
+import logging
+import os
 import secrets
 import uvicorn
 
+logger = logging.getLogger("shackle.license_server")
+
 # Configuration
-DATABASE_PATH = "licenses.db"
+# DATABASE_PATH comes from the environment so container / systemd deploys can
+# point it at a mounted volume (e.g. /data/licenses.db) without code edits.
+DATABASE_PATH = os.environ.get("DATABASE_PATH", "licenses.db")
 MASTER_SECRET = None  # Set via environment or init
 PUBLIC_KEY = None  # DEPRECATED single-key slot; kept for back-compat only.
 # key_id -> base64 Ed25519 public key. Server-side trust anchor(s). A license is
@@ -109,11 +115,18 @@ def configure_trust(master_secret: str,
       signing_key_id       : key_id that pairs with signing_private_key.
     """
     global MASTER_SECRET, TRUSTED_PUBLIC_KEYS, SIGNING_PRIVATE_KEY, SIGNING_KEY_ID
-    MASTER_SECRET = master_secret
+    # Only overwrite what the caller actually supplied. A later call (e.g. the
+    # startup env load) must not wipe configuration an earlier caller set, which
+    # would silently return the server to a fail-closed state that rejects every
+    # legitimate license.
+    if master_secret is not None:
+        MASTER_SECRET = master_secret
     if trusted_public_keys:
         TRUSTED_PUBLIC_KEYS = dict(trusted_public_keys)
-    SIGNING_PRIVATE_KEY = signing_private_key
-    SIGNING_KEY_ID = signing_key_id
+    if signing_private_key is not None:
+        SIGNING_PRIVATE_KEY = signing_private_key
+    if signing_key_id is not None:
+        SIGNING_KEY_ID = signing_key_id
 
 
 def load_trust_from_env() -> None:
@@ -127,9 +140,14 @@ def load_trust_from_env() -> None:
       SHACKLE_LICENSE_SIGNING_KEY_ID : key_id paired with the private key.
     Fails closed: if pubkeys are absent, TRUSTED_PUBLIC_KEYS stays empty and all
     signature verification returns False.
+
+    MASTER_SECRET is also accepted as a legacy alias of SHACKLE_MASTER_SECRET so
+    existing docker-compose / systemd EnvironmentFile deploys keep working.
     """
-    import os
-    master = os.environ.get("SHACKLE_MASTER_SECRET")
+    master = (
+        os.environ.get("SHACKLE_MASTER_SECRET")
+        or os.environ.get("MASTER_SECRET")
+    )
     pubkeys_raw = os.environ.get("SHACKLE_LICENSE_PUBKEYS")
     trusted: Dict[str, str] = {}
     if pubkeys_raw:
@@ -148,6 +166,22 @@ def load_trust_from_env() -> None:
         signing_private_key=os.environ.get("SHACKLE_LICENSE_PRIVATE_KEY"),
         signing_key_id=os.environ.get("SHACKLE_LICENSE_SIGNING_KEY_ID"),
     )
+
+
+def licensing_status() -> Dict[str, Any]:
+    """Report licensing readiness WITHOUT exposing any key material.
+
+    Counts and booleans only: never a secret, never a public key, never a key_id
+    value that could aid an attacker in probing the trust registry.
+    """
+    return {
+        "master_secret_configured": bool(MASTER_SECRET),
+        "trust_anchors": len(TRUSTED_PUBLIC_KEYS),
+        "signing_key_configured": bool(SIGNING_PRIVATE_KEY and SIGNING_KEY_ID),
+        # Ready to accept genuine licenses: needs the HMAC secret for checksum
+        # verification AND at least one trust anchor for signature verification.
+        "licensing_ready": bool(MASTER_SECRET) and len(TRUSTED_PUBLIC_KEYS) > 0,
+    }
 
 
 def sign_license(license_key: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
@@ -220,13 +254,22 @@ def init_database():
 def parse_license_key(license_key: str) -> Optional[Dict[str, str]]:
     """Parse SHACKLE license key format"""
     parts = license_key.split("-")
-    if len(parts) != 4 or parts[0] != "SHACKLE" or parts[1] != "ENT":
+    # Format: SHACKLE-ENT-<license_id>-<checksum>, where license_id is a UUID.
+    # A UUID contains hyphens of its own, so a naive 4-part split rejects every
+    # key the generator actually produces. Anchor on the known prefix and the
+    # trailing checksum, and rejoin everything between them as the license_id.
+    if len(parts) < 4 or parts[0] != "SHACKLE" or parts[1] != "ENT":
+        return None
+
+    license_id = "-".join(parts[2:-1])
+    checksum = parts[-1]
+    if not license_id or not checksum:
         return None
     
     return {
         "prefix": f"{parts[0]}-{parts[1]}",
-        "license_id": parts[2],
-        "checksum": parts[3]
+        "license_id": license_id,
+        "checksum": checksum
     }
 
 
@@ -340,8 +383,37 @@ def log_audit_event(
 # API endpoints
 @app.on_event("startup")
 async def startup():
-    """Initialize on startup"""
+    """Initialize on startup.
+
+    Trust anchors are loaded here, before the server accepts traffic. Without
+    this call TRUSTED_PUBLIC_KEYS stays empty and, because verification fails
+    closed, every legitimate license is rejected. Startup is the only correct
+    place for it: request handlers must never populate trust from request data.
+    """
     init_database()
+    load_trust_from_env()
+
+    status = licensing_status()
+    if status["licensing_ready"]:
+        logger.info(
+            "License server ready: %d trust anchor(s) loaded, issuer signing key %s.",
+            status["trust_anchors"],
+            "configured" if status["signing_key_configured"] else "not configured",
+        )
+    else:
+        # Loud, actionable, and safe to log: names the missing variables without
+        # printing any value.
+        missing = []
+        if not status["master_secret_configured"]:
+            missing.append("SHACKLE_MASTER_SECRET")
+        if status["trust_anchors"] == 0:
+            missing.append("SHACKLE_LICENSE_PUBKEYS")
+        logger.error(
+            "License server is FAIL-CLOSED: %s not set. Every license "
+            "verification will be rejected until these are configured in the "
+            "deployment environment. See v2/compliance/DEPLOYMENT-LICENSING.md.",
+            ", ".join(missing),
+        )
 
 
 @app.post("/api/v1/licenses/register", response_model=Dict[str, str])
@@ -528,8 +600,22 @@ async def export_audit_log(
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint"""
-    return {"status": "healthy", "service": "shackle-license-server", "version": "2.0.0"}
+    """Health check endpoint.
+
+    Includes licensing readiness so an operator can confirm a deployment is
+    actually able to validate licenses instead of silently rejecting all of
+    them. Reports counts and booleans only, never key material.
+    """
+    status = licensing_status()
+    return {
+        "status": "healthy",
+        "service": "shackle-license-server",
+        "version": "2.0.0",
+        "licensing_ready": status["licensing_ready"],
+        "trust_anchors": status["trust_anchors"],
+        "master_secret_configured": status["master_secret_configured"],
+        "signing_key_configured": status["signing_key_configured"],
+    }
 
 
 def init_config(master_secret: str):
@@ -540,15 +626,16 @@ def init_config(master_secret: str):
 
 if __name__ == "__main__":
     import sys
-    
-    if len(sys.argv) < 2:
-        print("Usage: python license_server.py <master_secret>")
-        sys.exit(1)
-    
-    init_config(sys.argv[1])
-    
+
+    # The master secret may be passed as argv[1] (legacy systemd ExecStart) or,
+    # preferably, supplied via the environment. It is NOT required here: the
+    # startup handler loads trust from the environment, and an unconfigured
+    # server still boots and serves /health so the operator can see it is
+    # fail-closed rather than watching the container crash-loop with no signal.
+    if len(sys.argv) > 1 and sys.argv[1].strip():
+        init_config(sys.argv[1])
+
     print("🚀 Starting SHACKLE-V2 License Server")
     print(f"📊 Database: {DATABASE_PATH}")
-    print("🔐 Master secret configured")
-    
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+
+    uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", "8000")))

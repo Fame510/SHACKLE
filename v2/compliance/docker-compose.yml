@@ -9,7 +9,14 @@ services:
     ports:
       - "8000:8000"
     environment:
+      # Legacy alias, still honored by the server.
       - MASTER_SECRET=${MASTER_SECRET}
+      # Licensing trust configuration. Without SHACKLE_LICENSE_PUBKEYS the
+      # server boots FAIL-CLOSED and rejects every license by design.
+      - SHACKLE_MASTER_SECRET=${SHACKLE_MASTER_SECRET}
+      - SHACKLE_LICENSE_PUBKEYS=${SHACKLE_LICENSE_PUBKEYS}
+      - SHACKLE_LICENSE_PRIVATE_KEY=${SHACKLE_LICENSE_PRIVATE_KEY}
+      - SHACKLE_LICENSE_SIGNING_KEY_ID=${SHACKLE_LICENSE_SIGNING_KEY_ID}
       - DATABASE_PATH=/data/licenses.db
       - LOG_LEVEL=INFO
     volumes:
