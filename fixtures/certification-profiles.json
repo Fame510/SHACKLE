@@ -1,0 +1,66 @@
+{
+  "schema": "shackle-certification-profile-manifest-v1",
+  "spec_revision": "SP/1.0.1",
+  "hashing": {
+    "file_sha256": "SHA-256 over exact bytes",
+    "vector_hash": "SHA-256 over sorted-key compact UTF-8 JSON with ensure_ascii=false and allow_nan=false, excluding vector_hash"
+  },
+  "profiles": [
+    {
+      "id": "decision-surface-v1",
+      "class": "conformance",
+      "fixture": "fixtures/conformance.json",
+      "fixture_sha256": "6553a1bced5ccab8c4c4f14d2f8a7c255383c2d5342a9a0fae375eab92a3e8da",
+      "fixture_bytes": 15209,
+      "required_vectors": 15,
+      "vector_seals": "fixtures/conformance-vector-hashes.json; validate source_fixture_sha256 and every seal",
+      "required_for": [
+        "full-runtime"
+      ],
+      "status": "official"
+    },
+    {
+      "id": "sp101-adversarial-input-v1",
+      "class": "adversarial-conformance",
+      "fixture": "fixtures/conformance-1.0.1.json",
+      "fixture_sha256": "f9655ab7681edb5423cebfc39685ef1622c914009939bb2cba1e29e5028183d7",
+      "fixture_bytes": 16993,
+      "required_vectors": 14,
+      "vector_seals": "inline vector_hash",
+      "required_for": [
+        "full-runtime"
+      ],
+      "status": "official"
+    },
+    {
+      "id": "decision-result-hardening-v1",
+      "class": "adversarial-conformance",
+      "fixture": "fixtures/decision-result-conformance.json",
+      "fixture_sha256": "84fd28ad0d96608265198b6afa43a01555c4d7d6dd75f934822345883e6ae8d2",
+      "fixture_bytes": 17887,
+      "required_vectors": 31,
+      "vector_seals": "inline vector_hash",
+      "required_for": [
+        "full-runtime"
+      ],
+      "status": "official"
+    },
+    {
+      "id": "runtime-adversarial-v1",
+      "class": "runtime-adversarial",
+      "fixture": "fixtures/runtime-adversarial-v1.json",
+      "fixture_sha256": "61243c33a666368e6246a2adfa500fe4658984c3156a4fba1350c78dec29b1b2",
+      "fixture_bytes": 9003,
+      "required_vectors": 22,
+      "required_for": [
+        "full-runtime"
+      ],
+      "status": "official",
+      "publication_date": "2026-09-23",
+      "vector_seals": "inline vector_hash",
+      "applicability": "Published, immutable runtime regression cases for the reference Python v2 daemon/client; equivalent implementations must provide reproducible adapter mappings."
+    }
+  ],
+  "certification_policy": "CERTIFICATION.md",
+  "policy": "The repository owner may self-verify and publish official profiles and a certification entry after the local reproducible full suite passes. Independent third parties are invited to reproduce against the published immutable files after publication."
+}

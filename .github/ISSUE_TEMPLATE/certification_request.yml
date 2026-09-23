@@ -6,10 +6,16 @@ body:
   - type: markdown
     attributes:
       value: |
-        ## SHACKLE Certification Request
-        Certification is verified against the **public conformance fixtures**. Run
-        `pytest v2/tests/test_v2_conformance.py` against your runtime, then submit the
-        report below. Every claim here must be independently reproducible.
+        ## SHACKLE Runtime Certification Request
+        A certification is bound to the exact implementation version, immutable commit,
+        artifact, configuration, and official profile hashes. It means those exact required
+        conformance and runtime-adversarial tests passed under a reproducible procedure on
+        the recorded date. For the SHACKLE reference runtime, the repository owner
+        self-verifies locally before publishing; independent runs are invited afterward.
+        It is a scoped security-assurance finding, not an absolute safety
+        guarantee. Read CERTIFICATION.md for scope and exclusions. Run every required official
+        profile and submit the complete per-case report. The owner reviews the evidence; intake
+        does not automatically grant a listing. Independent reproductions after publication are welcome.
   - type: input
     id: runtime_name
     attributes:
@@ -28,9 +34,36 @@ body:
     attributes:
       label: Certification Level Claimed
       options:
-        - SP/1.0-Core (mediation fixtures)
-        - SP/1.0-HITL (mediation + transition fixtures)
-        - SP/1.0-Sovereign (HITL + daemon/ledger/audit, V2 runtime)
+        - SP/1.0-Full-Runtime (all four official profiles)
+    validations:
+      required: true
+  - type: input
+    id: version_commit_digest
+    attributes:
+      label: Exact Version, Immutable Commit, and Artifact Digest
+      description: Include a source commit SHA and build/package digest; do not use a mutable branch name.
+    validations:
+      required: true
+  - type: input
+    id: platform_config
+    attributes:
+      label: Runtime, Platform, and Configuration Profile
+      description: Include language/runtime, OS/container image, dependencies, and non-secret configuration profile.
+    validations:
+      required: true
+  - type: textarea
+    id: profile_hashes
+    attributes:
+      label: Official Profile IDs and Fixture Hashes
+      description: Paste JSON with every required profile: {"profiles":[{"id":"...","fixture_sha256":"...","fixture_bytes":123,"case_count":12}]}. Values must match fixtures/certification-profiles.json exactly.
+      render: json
+    validations:
+      required: true
+  - type: input
+    id: source_url
+    attributes:
+      label: Immutable Source URL
+      description: Link directly to the immutable source repository and commit being tested.
     validations:
       required: true
   - type: input
@@ -40,11 +73,18 @@ body:
       value: "SP/1.0"
     validations:
       required: true
+  - type: input
+    id: sp_revision
+    attributes:
+      label: SP Revision Targeted
+      value: "SP/1.0.1"
+    validations:
+      required: true
   - type: textarea
     id: report
     attributes:
-      label: Conformance Report
-      description: Paste the full per-fixture pass/fail output, including the fixture hashes verified.
+      label: Complete Conformance and Adversarial Report
+      description: Provide each required profile id and SHA-256, each vector id/hash, expected vs observed verdict/reason, pass/fail/unsupported, diagnostics, all skips, and raw test output.
       render: shell
     validations:
       required: true
@@ -52,7 +92,7 @@ body:
     id: evidence_url
     attributes:
       label: Reproducible Evidence URL
-      description: Link to a public repo/commit/CI run where the fixtures can be re-run.
+      description: Link to public immutable source, build/CI output, and exact command/image needed to independently reproduce the run. Do not link a mutable branch alone.
     validations:
       required: true
   - type: checkboxes
@@ -62,5 +102,7 @@ body:
       options:
         - label: I attest this report is genuine and reproducible from the linked evidence.
           required: true
-        - label: I understand listing requires independent verification against the public fixtures.
+        - label: I understand the repository owner reviews and decides the listing; independent parties are invited to reproduce against the published artifacts after release.
+          required: true
+        - label: I disclosed unsupported cases, known limitations, deviations, skipped tests, and material configuration details; I understand scope exclusions in CERTIFICATION.md.
           required: true
