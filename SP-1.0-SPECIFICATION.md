@@ -324,6 +324,34 @@ Reasons are lowercase, stable, and namespaced with `:` where a family exists.
 | `budget_threshold` | HITL | Remaining fraction at or below threshold. |
 | `fail_closed:opaque_context` | HITL | Context not deterministically evaluable. |
 
+#### 3.5.1 Decision-Result Reasons
+
+The reasons above are produced by `decide()` — they describe a **call**. The
+reasons below are produced by the enforcement layer and describe the **decision
+result itself**: they are emitted when the value an enforcer received from its
+decision source is out of contract, independently of what the call was.
+
+A conforming enforcer releases a call **only** on an exact
+`("ALLOW", <non-empty reason string>)` ordered pair. Every other result is
+coerced to a verdict at least as restrictive as the one it appears to carry;
+coercion is one-directional and never yields ALLOW.
+
+| Reason | Verdict | Trigger |
+|--------|---------|---------|
+| `decide_unavailable_fail_closed` | DENY | The decision function raised (any throwable, including `BaseException`). |
+| `malformed_decision:missing` | DENY | Result is null/absent. |
+| `malformed_decision:not_a_pair` | DENY | Result is a string, byte string, mapping, unordered container, or other non-sequence. |
+| `malformed_decision:bad_arity` | DENY | Ordered sequence whose length is not 2. |
+| `malformed_decision:verdict_not_a_string` | DENY | Verdict element is not exactly a text value (boolean, number, null, nested structure, or a text-like object with overridden equality). |
+| `malformed_decision:unknown_verdict` | DENY | Text verdict outside `{ALLOW, DENY, HITL}`, including case and whitespace variants. |
+| `malformed_decision:reason_not_a_string` | DENY | Verdict is `ALLOW` but the reason is unusable (non-text, empty, or containing control characters). An unrecordable release is not a release. |
+| `malformed_decision:unspecified_reason` | DENY / HITL | Verdict is `DENY` or `HITL` with an unusable reason. The verdict is preserved; only the label is repaired. |
+
+Vectors: `fixtures/decision-result-conformance.json`. These reasons are
+additive under the existing SP/1.0.1 revision: they only add DENY/HITL outcomes
+to results that previously fell through to execution, so no revision label
+changes and the published fixture files are untouched.
+
 ### 3.6 The HITL Transition Contract
 
 **A human approval is a single-use capability over one specific preimage. It
