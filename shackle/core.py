@@ -24,9 +24,19 @@ from dataclasses import dataclass, field
 # separate implementation of the decision surface — it maps its live runtime
 # state onto decide()'s (config, state, call) contract and honors its verdict.
 try:
-    from .conformance import decide as _sp_decide, canonical_hash as _canonical_hash
+    from .conformance import (
+        decide as _sp_decide,
+        canonical_hash as _canonical_hash,
+        decide_checked as _decide_checked,
+        normalize_decision as _normalize_decision,
+    )
 except ImportError:  # pragma: no cover - allows running core.py in isolation
-    from conformance import decide as _sp_decide, canonical_hash as _canonical_hash
+    from conformance import (
+        decide as _sp_decide,
+        canonical_hash as _canonical_hash,
+        decide_checked as _decide_checked,
+        normalize_decision as _normalize_decision,
+    )
 
 from rich.console import Console
 from rich.panel import Panel
@@ -176,6 +186,16 @@ class TriggerEngine:
         rule were therefore unreachable from the tool path by construction: the
         runtime asked the standard a question whose answer it had already
         pre-decided. All four inputs are now live.
+
+        The RESULT is now validated, not just the call. Previously this
+        method returned decide()'s return value untouched and the caller tuple-
+        unpacked it, so a decision function that returned a non-pair raised
+        TypeError/ValueError OUTSIDE any handler, and one that returned an
+        unrecognized verdict fell through every DENY/HITL branch downstream and
+        the call executed. decide_checked() now guarantees an enforceable
+        (verdict, reason) in the SP/1.0 enum for every possible return value
+        and every throw, so this method cannot hand the enforcement path
+        anything it is unable to act on.
         """
         config = {
             "budget_usd": self.budget,
@@ -196,13 +216,15 @@ class TriggerEngine:
             "nonce": nonce,
             "estimated_cost_usd": estimated_cost_usd,
         }
-        try:
-            return _sp_decide(config, decide_state, call)
-        except Exception as e:  # pragma: no cover - decide() is total; never fail open
+        verdict, reason = _decide_checked(_sp_decide, config, decide_state, call)
+        if reason == "decide_unavailable_fail_closed":
             logger.warning(
-                "SHACKLE: decide() raised on the tool path (%r); failing closed.", e,
-            )
-            return ("DENY", "decide_unavailable_fail_closed")
+                "SHACKLE: decide() raised on the tool path; failing closed.")
+        elif reason.startswith("malformed_decision:"):
+            logger.warning(
+                "SHACKLE: decide() returned an out-of-contract result on the "
+                "tool path (%s); failing closed.", reason)
+        return (verdict, reason)
 
     def evaluate_llm_call(self, model: str, input_tokens: int, output_tokens: int, state: ExecutionState) -> None:
         # CRITICAL SECTION: the entire read-decide-mutate-check sequence runs
@@ -237,16 +259,28 @@ class TriggerEngine:
             # implementation silently swallowed any exception with `pass`,
             # which is the exact opposite of "fail closed". Surface the
             # failure on the audit trail and deny the call.
-            try:
-                state.last_decision = _sp_decide(config, decide_state, call)
-            except Exception as e:  # pragma: no cover - defensive
-                logger.warning(
-                    "SHACKLE: decide() raised during cost consultation (%r); "
-                    "failing closed (denying call).", e,
-                )
-                state.last_decision = ("DENY", "decide_unavailable_fail_closed")
+            #
+            # decide_checked() also validates the RESULT, so an
+            # out-of-contract return (non-pair, unknown verdict, unusable
+            # reason) can no longer crash the unpack below, nor slip past the
+            # verdict branches into the state mutation that COMMITS the spend.
+            state.last_decision = _decide_checked(
+                _sp_decide, config, decide_state, call)
             verdict, reason = state.last_decision
-            if verdict == "DENY":
+            if reason == "decide_unavailable_fail_closed":
+                logger.warning(
+                    "SHACKLE: decide() raised during cost consultation; "
+                    "failing closed (denying call).")
+            elif reason.startswith("malformed_decision:"):
+                logger.warning(
+                    "SHACKLE: decide() returned an out-of-contract result "
+                    "during cost consultation (%s); failing closed.", reason)
+            # ALLOW-LIST, not a deny-list. Only the exact verdict "ALLOW"
+            # releases the call. Previously this read `if verdict == "DENY"`
+            # with no else, so ANY other value -- including a verdict this
+            # runtime does not recognize -- skipped every branch and fell
+            # through to the mutation below.
+            if verdict != "ALLOW":
                 if reason == "budget_overrun":
                     # This single call would exceed the remaining budget.
                     # Do NOT mutate state -- the call never happened.
@@ -298,6 +332,18 @@ class TriggerEngine:
         "policy_violation:malformed_input": "POLICY_VIOLATION",
         "policy_violation:duplicate_nonce": "DUPLICATE_NONCE",
         "policy_violation:duplicate_resume_no_effect": "POLICY_VIOLATION",
+        # The decision RESULT itself was out of contract. Labelled
+        # distinctly from a policy denial so an operator can tell "the guard
+        # refused this call" from "the guard could not trust its own decision
+        # source" on the audit trail.
+        "decide_unavailable_fail_closed": "MALFORMED_DECISION",
+        "malformed_decision:missing": "MALFORMED_DECISION",
+        "malformed_decision:not_a_pair": "MALFORMED_DECISION",
+        "malformed_decision:bad_arity": "MALFORMED_DECISION",
+        "malformed_decision:verdict_not_a_string": "MALFORMED_DECISION",
+        "malformed_decision:unknown_verdict": "MALFORMED_DECISION",
+        "malformed_decision:reason_not_a_string": "MALFORMED_DECISION",
+        "malformed_decision:unspecified_reason": "MALFORMED_DECISION",
     }
 
     def evaluate_tool_call(
@@ -368,6 +414,22 @@ class TriggerEngine:
                 raise ShackleInterrupt(
                     message=f"SHACKLE requires human review of '{tool_name}': {sp_reason}",
                     trigger_type="HITL_REQUIRED", state=state, details=details)
+
+            # TERMINAL ALLOW-LIST. Release requires the exact
+            # verdict "ALLOW" and nothing else. The two branches above are a
+            # deny-LIST: before this guard existed, a verdict outside
+            # {DENY, HITL, ALLOW} matched neither, fell through, and the tool
+            # EXECUTED. normalize_decision() already maps every out-of-contract
+            # result to DENY, so reaching here with a non-ALLOW verdict means a
+            # future code path bypassed that normalization -- which is exactly
+            # the case that must not be allowed to fail open. Belt and braces,
+            # deliberately: the invariant is enforced at the point of release,
+            # independently of who produced the verdict.
+            if sp_verdict != "ALLOW":
+                raise ShackleInterrupt(
+                    message=(f"SHACKLE denied '{tool_name}': unenforceable verdict "
+                             f"{sp_verdict!r} ({sp_reason})"),
+                    trigger_type="MALFORMED_DECISION", state=state, details=details)
 
             state.record_nonce(nonce)
 
