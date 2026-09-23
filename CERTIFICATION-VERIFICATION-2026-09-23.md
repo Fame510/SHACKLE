@@ -1,23 +1,27 @@
 # SHACKLE reference runtime verification record
 
-**Verification date:** 2026-09-23
-**Tested implementation commit:** `feca97fd2333a1fb334df8bbeefc444cefffb881`
-**Source archive SHA-256:** `0e96f306e5475f619a238e31603fb48c3f80d32b8b92be75217aaabe5b0ec891`
-**Environment:** Python 3.12.12; Linux 6.1.158+ x86_64
+**Verification date:** 2026-09-23  
+**Tested implementation commit:** `d9fb4e3cdebf8a18caa4e14060ac22208a1ea4a6`  
+**Source archive SHA-256:** `7280fcb919a761f3fb7add8b7cfa7c2e8f7de62886ee9979786345216e2fcb48`  
+**Registry correction commit:** `7cdb3615dfaa8fa3c9e807917d19029015019f14` (metadata-only registry update; no runtime source changes)  
+**Environment:** Python 3.12.12; Linux 6.1.158+ x86_64  
 **Verifier:** repository owner, local self-verification
 
 ## Result
 
-Fresh full-suite run from a detached checkout of the tested commit:
+Fresh full-suite runs were made against the tested implementation commit and again against `master` after the registry binding correction:
 
 ```text
-PYTHONPATH=. python -m pytest -q --tb=short
-365 passed, 34 warnings in 10.61s
+Tested implementation commit d9fb4e3cdebf8a18caa4e14060ac22208a1ea4a6:
+365 passed, 34 warnings in 9.84s
+
+Post-registry-correction master commit 7cdb3615dfaa8fa3c9e807917d19029015019f14:
+365 passed, 34 warnings in 9.37s
 ```
 
-The 34 warnings were existing deprecations from licensing/FastAPI/Redis test paths; there were no failed or skipped tests. The suite includes conformance, daemon, approval-flow, malformed-boundary, replay/capability, race/budget, certification-pipeline, and adversarial tests. Profile file and vector seals are checked by the tests.
+The 34 warnings were existing deprecations from licensing/FastAPI/Redis test paths; there were no failed or skipped tests. The suite includes conformance, daemon, approval-flow, malformed-boundary, replay/capability, race/budget, certification-pipeline, and adversarial tests. Profile file and vector seals are checked by the tests. The certification entry binds to the immutable implementation source commit above; its source archive digest is computed from that commit. The later registry correction changed metadata only and points to that tested source commit.
 
-The final registry and certification-pipeline validation also passed locally:
+The registry validation also passed on the post-correction master tree:
 
 ```text
 python tools/certification_pipeline.py validate-registry registry.json
