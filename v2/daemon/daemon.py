@@ -5,19 +5,28 @@ Handles pre_exec/post_exec protocol messages for tool execution governance
 """
 
 import asyncio
+import hmac
 import json
 import logging
+import math
 import os
-import signal
+import secrets
+import socket
+import stat
 import sys
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, Optional, Set
+from typing import Dict, Literal, Optional, Set
 
 import uvicorn
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
-from pydantic import BaseModel, Field
+from fastapi import Depends, FastAPI, Header, WebSocket, WebSocketDisconnect, HTTPException
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+_REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
+from shackle.conformance import canonicalization_error
 
 from state import StateManager
 from audit import AuditLogger, load_signing_key
@@ -32,27 +41,76 @@ logger = logging.getLogger(__name__)
 
 # Protocol message models
 class PreExecRequest(BaseModel):
-    session_id: str
-    tool_name: str
+    model_config = ConfigDict(strict=True, extra="forbid")
+
+    session_id: str = Field(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9_-]+$")
+    request_id: str = Field(min_length=20, max_length=128, pattern=r"^[A-Za-z0-9_-]+$")
+    tool_name: str = Field(min_length=1, max_length=256)
     parameters: Dict
-    estimated_cost: float = 0.0
+    estimated_cost: float = Field(default=0.0, ge=0.0, le=1_000_000_000)
     context: Optional[Dict] = None
 
+    @field_validator("session_id", "tool_name")
+    @classmethod
+    def reject_whitespace_only(cls, value):
+        if not value.strip():
+            raise ValueError("must not be blank")
+        return value
 
-class PreExecResponse(BaseModel):
-    decision: str  # ALLOW, DENY, HITL
-    reason: Optional[str] = None
-    hitl_token: Optional[str] = None
+    @field_validator("parameters")
+    @classmethod
+    def validate_parameters(cls, value):
+        if type(value) is not dict or canonicalization_error(value) is not None:
+            raise ValueError("parameters must be a bounded canonical JSON object")
+        return value
+
+    @field_validator("context")
+    @classmethod
+    def validate_context(cls, value):
+        if value is not None and (type(value) is not dict or canonicalization_error(value) is not None):
+            raise ValueError("context must be a bounded canonical JSON object or null")
+        return value
+
+    @field_validator("estimated_cost")
+    @classmethod
+    def validate_finite_cost(cls, value):
+        if type(value) not in (int, float) or not math.isfinite(value):
+            raise ValueError("estimated_cost must be finite")
+        return float(value)
 
 
 class PostExecRequest(BaseModel):
-    session_id: str
-    tool_name: str
+    model_config = ConfigDict(strict=True, extra="forbid")
+
+    session_id: str = Field(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9_-]+$")
+    request_id: str = Field(min_length=20, max_length=128, pattern=r"^[A-Za-z0-9_-]+$")
+    tool_name: str = Field(min_length=1, max_length=256)
     parameters: Dict
     result: Optional[Dict] = None
-    error: Optional[str] = None
-    actual_cost: float = 0.0
-    execution_time_ms: float = 0.0
+    error: Optional[str] = Field(default=None, max_length=20_000)
+    actual_cost: float = Field(default=0.0, ge=0.0, le=1_000_000_000)
+    execution_time_ms: float = Field(default=0.0, ge=0.0, le=31_536_000_000)
+
+    @field_validator("parameters", "result")
+    @classmethod
+    def validate_post_exec_json(cls, value):
+        if value is not None and (type(value) is not dict or canonicalization_error(value) is not None):
+            raise ValueError("must be a bounded canonical JSON object or null")
+        return value
+
+    @field_validator("actual_cost", "execution_time_ms")
+    @classmethod
+    def validate_finite_measurement(cls, value):
+        if type(value) not in (int, float) or not math.isfinite(value):
+            raise ValueError("measurement must be finite")
+        return float(value)
+
+
+class PreExecResponse(BaseModel):
+    model_config = ConfigDict(strict=True, extra="forbid")
+    decision: Literal["ALLOW", "DENY", "HITL"]
+    reason: str = Field(min_length=1, max_length=200)
+    hitl_token: Optional[str] = None
 
 
 class PostExecResponse(BaseModel):
@@ -61,16 +119,88 @@ class PostExecResponse(BaseModel):
 
 
 class HITLResponse(BaseModel):
-    hitl_token: str
-    decision: str  # ALLOW, DENY
-    notes: Optional[str] = None
+    model_config = ConfigDict(strict=True, extra="forbid")
+    hitl_token: str = Field(min_length=1, max_length=256)
+    decision: Literal["ALLOW", "DENY"]
+    notes: Optional[str] = Field(default=None, max_length=2_000)
+    request_id: str = Field(min_length=20, max_length=128, pattern=r"^[A-Za-z0-9_-]+$")
+    session_id: str = Field(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9_-]+$")
+
+
+class HITLWaitRequest(BaseModel):
+    model_config = ConfigDict(strict=True, extra="forbid")
+    hitl_token: str = Field(min_length=1, max_length=256)
+
+
+async def _verify_bearer_token(authorization: Optional[str], env_name: str) -> None:
+    expected = os.getenv(env_name, "")
+    # No anonymous fallback: the daemon is an authorization authority, and an
+    # unconfigured shared secret means the authority cannot authenticate callers.
+    if not expected or len(expected) < 32:
+        raise HTTPException(status_code=503, detail=f"{env_name} is not configured with a 32-character secret")
+    prefix = "Bearer "
+    supplied = authorization[len(prefix):] if type(authorization) is str and authorization.startswith(prefix) else ""
+    if not hmac.compare_digest(supplied, expected):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+
+async def require_service_auth(authorization: Optional[str] = Header(default=None)) -> None:
+    await _verify_bearer_token(authorization, "SHACKLE_SERVICE_TOKEN")
+
+
+async def require_hitl_auth(authorization: Optional[str] = Header(default=None)) -> None:
+    await _verify_bearer_token(authorization, "SHACKLE_HITL_TOKEN")
+
+
+async def _expire_hitl_requests(now: Optional[float] = None) -> None:
+    """Bound pending approval state and remove expired one-shot requests."""
+    now = asyncio.get_running_loop().time() if now is None else now
+    expired = [token for token, created in hitl_created_at.items()
+               if now - created >= _HITL_TTL_SECONDS]
+    for token in expired:
+        future = hitl_pending.pop(token, None)
+        hitl_created_at.pop(token, None)
+        hitl_wait_claimed.discard(token)
+        hitl_bindings.pop(token, None)
+        if future is not None and not future.done():
+            future.cancel()
+
+
+async def _create_hitl_request(session_id: str, request_id: str) -> str:
+    async with hitl_lock:
+        await _expire_hitl_requests()
+        if len(hitl_pending) >= _MAX_PENDING_HITL:
+            raise HTTPException(status_code=503, detail="HITL queue is full")
+        token = secrets.token_urlsafe(32)
+        while token in hitl_pending:
+            token = secrets.token_urlsafe(32)
+        hitl_pending[token] = asyncio.get_running_loop().create_future()
+        hitl_created_at[token] = asyncio.get_running_loop().time()
+        hitl_bindings[token] = (session_id, request_id)
+        return token
+
+
+async def _discard_hitl_request(token: str) -> None:
+    async with hitl_lock:
+        future = hitl_pending.pop(token, None)
+        hitl_created_at.pop(token, None)
+        hitl_wait_claimed.discard(token)
+        hitl_bindings.pop(token, None)
+        if future is not None and not future.done():
+            future.cancel()
 
 
 # Global state
 state_manager: Optional[StateManager] = None
 audit_logger: Optional[AuditLogger] = None
 hitl_pending: Dict[str, asyncio.Future] = {}
+hitl_wait_claimed: Set[str] = set()
+hitl_created_at: Dict[str, float] = {}
+hitl_bindings: Dict[str, tuple[str, str]] = {}
+hitl_lock = asyncio.Lock()
 websocket_connections: Set[WebSocket] = set()
+_HITL_TTL_SECONDS = 300.0
+_MAX_PENDING_HITL = 4096
 
 
 @asynccontextmanager
@@ -129,178 +259,134 @@ app = FastAPI(
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint"""
-    return {
-        "status": "healthy",
-        "timestamp": datetime.utcnow().isoformat(),
-        "components": {
-            "state": state_manager is not None and state_manager.is_connected(),
-            "audit": audit_logger is not None and audit_logger.is_connected()
-        }
-    }
+    """Public liveness signal; authorization decisions require live dependencies."""
+    ready = (
+        state_manager is not None and await state_manager.is_connected()
+        and audit_logger is not None and audit_logger.is_connected()
+    )
+    if not ready:
+        raise HTTPException(status_code=503, detail="SHACKLE dependencies are not ready")
+    return {"status": "healthy", "timestamp": datetime.now(timezone.utc).isoformat()}
 
 
-@app.post("/pre_exec", response_model=PreExecResponse)
+@app.post("/pre_exec", response_model=PreExecResponse, dependencies=[Depends(require_service_auth)])
 async def pre_exec(req: PreExecRequest):
-    """
-    Pre-execution check: evaluate if tool call should proceed
-    Returns: ALLOW, DENY, or HITL (human-in-the-loop)
-    """
-    logger.info(f"pre_exec: {req.session_id} | {req.tool_name}")
-    
+    """Evaluate and create a request-bound, one-shot execution capability."""
+    if state_manager is None or audit_logger is None:
+        raise HTTPException(status_code=503, detail="SHACKLE policy dependencies are unavailable")
     try:
-        # Atomic budget + repeat evaluation. This single Redis round-trip replaces
-        # the previous check_budget -> check_repeat_call -> get_repeat_count ->
-        # record_call sequence, eliminating the TOCTOU race where two concurrent
-        # requests on the same session could both pass before either was recorded.
         evaluation = await state_manager.evaluate_and_record(
-            session_id=req.session_id,
-            tool_name=req.tool_name,
-            parameters=req.parameters,
-            estimated_cost=req.estimated_cost,
-            max_repeat=3,
+            session_id=req.session_id, tool_name=req.tool_name, parameters=req.parameters,
+            estimated_cost=req.estimated_cost, max_repeat=3, request_id=req.request_id,
         )
         decision = evaluation["decision"]
-        repeat_count = evaluation["repeat_count"]
-        # Verified SP/1.0 reason code (e.g. budget_exhausted, max_repeat_exceeded,
-        # fail_closed:evaluation_error) produced by decide(), not a hardcoded string.
-        reason_code = evaluation.get("reason", "unspecified")
-
+        reason = evaluation["reason"]
+        if type(decision) is not str or decision not in {"ALLOW", "DENY", "HITL"}:
+            return PreExecResponse(decision="DENY", reason="fail_closed:invalid_policy_result")
+        if type(reason) is not str or not reason:
+            return PreExecResponse(decision="DENY", reason="fail_closed:invalid_policy_reason")
         if decision == "DENY":
-            await audit_logger.log_decision(
-                session_id=req.session_id,
-                tool_name=req.tool_name,
-                decision="DENY",
-                reason=reason_code,
-            )
-            return PreExecResponse(decision="DENY", reason=reason_code)
-
+            await audit_logger.log_decision(req.session_id, req.tool_name, "DENY", reason)
+            return PreExecResponse(decision="DENY", reason=reason)
         if decision == "HITL":
-            hitl_token = f"hitl_{req.session_id}_{datetime.utcnow().timestamp()}"
-
-            await audit_logger.log_decision(
-                session_id=req.session_id,
-                tool_name=req.tool_name,
-                decision="HITL",
-                reason=reason_code,
-            )
-
-            # Create future for HITL response
-            hitl_pending[hitl_token] = asyncio.Future()
-
-            # Notify WebSocket clients
+            token = await _create_hitl_request(req.session_id, req.request_id)
+            try:
+                await audit_logger.log_decision(req.session_id, req.tool_name, "HITL", reason)
+            except Exception:
+                await _discard_hitl_request(token)
+                raise
             await broadcast_hitl_request({
-                "hitl_token": hitl_token,
-                "session_id": req.session_id,
-                "tool_name": req.tool_name,
-                "parameters": req.parameters,
-                "reason": f"Repeat call ({repeat_count} times)",
-                "timestamp": datetime.utcnow().isoformat(),
+                "hitl_token": token, "session_id": req.session_id, "request_id": req.request_id,
+                "tool_name": req.tool_name, "parameters": req.parameters, "reason": reason,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             })
-
-            return PreExecResponse(
-                decision="HITL",
-                reason=reason_code,
-                hitl_token=hitl_token,
-            )
-
-        # ALLOW: the call was already recorded atomically inside evaluate_and_record.
-        await audit_logger.log_decision(
-            session_id=req.session_id,
-            tool_name=req.tool_name,
-            decision="ALLOW",
-            reason=reason_code,
-        )
-
-        return PreExecResponse(decision="ALLOW", reason=reason_code)
-
-    except Exception as e:
-        logger.error(f"Error in pre_exec: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+            return PreExecResponse(decision="HITL", reason=reason, hitl_token=token)
+        if decision != "ALLOW" or evaluation.get("request_id") != req.request_id:
+            return PreExecResponse(decision="DENY", reason="fail_closed:invalid_policy_result")
+        await audit_logger.log_decision(req.session_id, req.tool_name, "ALLOW", reason)
+        return PreExecResponse(decision="ALLOW", reason=reason, hitl_token=req.request_id)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Error in pre_exec; failing closed: %s", exc, exc_info=True)
+        return PreExecResponse(decision="DENY", reason="fail_closed:policy_error")
 
 
-@app.post("/post_exec", response_model=PostExecResponse)
+@app.post("/post_exec", response_model=PostExecResponse, dependencies=[Depends(require_service_auth)])
 async def post_exec(req: PostExecRequest):
-    """
-    Post-execution logging: update counters and write audit log
-    """
-    logger.info(f"post_exec: {req.session_id} | {req.tool_name} | {req.actual_cost}")
-    
+    """Consume the matching pre-exec capability exactly once, then audit."""
+    if state_manager is None or audit_logger is None:
+        raise HTTPException(status_code=503, detail="SHACKLE policy dependencies are unavailable")
     try:
-        # Update budget
-        await state_manager.update_budget(
-            req.session_id,
-            req.actual_cost
+        accepted = await state_manager.record_post_exec_once(
+            req.session_id, req.request_id, req.tool_name, req.parameters, req.actual_cost,
         )
-        
-        # Log execution
+        if not accepted:
+            raise HTTPException(status_code=409, detail="No matching unused execution authorization")
         await audit_logger.log_execution(
-            session_id=req.session_id,
-            tool_name=req.tool_name,
-            parameters=req.parameters,
-            result=req.result,
-            error=req.error,
-            cost=req.actual_cost,
-            execution_time_ms=req.execution_time_ms
+            session_id=req.session_id, tool_name=req.tool_name, parameters=req.parameters,
+            result=req.result, error=req.error, cost=req.actual_cost,
+            execution_time_ms=req.execution_time_ms,
         )
-        
-        return PostExecResponse(
-            status="ACK",
-            message="Execution logged"
-        )
-        
-    except Exception as e:
-        logger.error(f"Error in post_exec: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        return PostExecResponse(status="ACK", message="Execution logged")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Error in post_exec; failing closed: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail="Execution accounting failed") from exc
 
 
-@app.post("/hitl_response")
+@app.post("/hitl_response", dependencies=[Depends(require_hitl_auth)])
 async def hitl_response(resp: HITLResponse):
-    """
-    Human-in-the-loop response endpoint
-    """
-    logger.info(f"hitl_response: {resp.hitl_token} | {resp.decision}")
-    
-    if resp.hitl_token not in hitl_pending:
-        raise HTTPException(status_code=404, detail="HITL token not found or expired")
-    
-    try:
-        # Resolve the pending future
-        future = hitl_pending.pop(resp.hitl_token)
+    """Resolve an authenticated, pending approval exactly once."""
+    async with hitl_lock:
+        await _expire_hitl_requests()
+        future = hitl_pending.get(resp.hitl_token)
+        binding = hitl_bindings.get(resp.hitl_token)
+        if future is None or future.done() or binding != (resp.session_id, resp.request_id):
+            raise HTTPException(status_code=404, detail="HITL token not found, expired, mismatched, or consumed")
+        # Retain the future until the sole authenticated waiter consumes it.
         future.set_result(resp)
-        
-        return {"status": "ACK", "message": "HITL response recorded"}
-        
-    except Exception as e:
-        logger.error(f"Error in hitl_response: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+    return {"status": "ACK", "message": "HITL response recorded"}
 
 
-@app.get("/hitl_wait/{hitl_token}")
-async def hitl_wait(hitl_token: str):
-    """
-    Blocking endpoint to wait for HITL response
-    Used by clients that don't have WebSocket support
-    """
-    if hitl_token not in hitl_pending:
-        raise HTTPException(status_code=404, detail="HITL token not found")
-    
+@app.post("/hitl_wait", dependencies=[Depends(require_service_auth)])
+async def hitl_wait(req: HITLWaitRequest):
+    """One authenticated runtime waiter may consume each approval response."""
+    token = req.hitl_token
+    async with hitl_lock:
+        await _expire_hitl_requests()
+        future = hitl_pending.get(token)
+        if future is None or token in hitl_wait_claimed:
+            raise HTTPException(status_code=404, detail="HITL token not found, expired, or already consumed")
+        hitl_wait_claimed.add(token)
+
     try:
-        # Wait for human response (with timeout)
-        future = hitl_pending[hitl_token]
-        resp = await asyncio.wait_for(future, timeout=300.0)  # 5 min timeout
-        
-        return {
-            "decision": resp.decision,
-            "notes": resp.notes
-        }
-        
+        response = await asyncio.wait_for(asyncio.shield(future), timeout=_HITL_TTL_SECONDS)
+        async with hitl_lock:
+            if hitl_pending.get(token) is not future:
+                raise HTTPException(status_code=404, detail="HITL response already consumed")
+            hitl_pending.pop(token, None)
+            hitl_created_at.pop(token, None)
+            hitl_wait_claimed.discard(token)
+            hitl_bindings.pop(token, None)
+        if response.decision == "ALLOW":
+            granted = await state_manager.grant_hitl_execution(response.session_id, response.request_id)
+            if not granted:
+                return {"decision": "DENY", "notes": "fail_closed:hitl_grant_failed",
+                        "request_id": response.request_id, "session_id": response.session_id}
+        return {"decision": response.decision, "notes": response.notes,
+                "request_id": response.request_id, "session_id": response.session_id}
     except asyncio.TimeoutError:
-        hitl_pending.pop(hitl_token, None)
+        async with hitl_lock:
+            if hitl_pending.get(token) is future:
+                hitl_pending.pop(token, None)
+                hitl_created_at.pop(token, None)
+                hitl_wait_claimed.discard(token)
+                hitl_bindings.pop(token, None)
+                if not future.done():
+                    future.cancel()
         raise HTTPException(status_code=408, detail="HITL request timed out")
-    except Exception as e:
-        logger.error(f"Error in hitl_wait: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.websocket("/ws")
@@ -318,10 +404,9 @@ async def websocket_endpoint(websocket: WebSocket):
             data = await websocket.receive_text()
             msg = json.loads(data)
             
-            # Handle HITL responses via WebSocket
-            if msg.get("type") == "hitl_response":
-                resp = HITLResponse(**msg["data"])
-                await hitl_response(resp)
+            # WebSocket is notification-only. Approval submissions must use the
+            # separately authenticated /hitl_response endpoint; never allow an
+            # unauthenticated websocket to resolve an approval token.
                 
     except WebSocketDisconnect:
         websocket_connections.remove(websocket)
@@ -351,35 +436,37 @@ async def broadcast_hitl_request(data: Dict):
 
 
 def run_server():
-    """Run the FastAPI server on Unix socket"""
+    """Run the daemon on a private AF_UNIX socket (owner and group only)."""
     socket_path = os.getenv("SHACKLE_SOCKET", "/tmp/shackle.sock")
-    
-    # Remove existing socket
-    if os.path.exists(socket_path):
-        os.remove(socket_path)
-    
-    # Run with uvicorn
-    config = uvicorn.Config(
-        app,
-        uds=socket_path,
-        log_level="info",
-        access_log=True
-    )
+    socket_file = Path(socket_path)
+    socket_file.parent.mkdir(parents=True, exist_ok=True)
+
+    # Refuse symlinks and non-socket collisions rather than deleting an
+    # attacker-chosen filesystem target. A stale socket is removable only when
+    # lstat confirms it is actually a Unix socket.
+    try:
+        existing = socket_file.lstat()
+    except FileNotFoundError:
+        existing = None
+    if existing is not None:
+        if not stat.S_ISSOCK(existing.st_mode):
+            raise RuntimeError("Refusing to replace non-socket SHACKLE path")
+        socket_file.unlink()
+
+    config = uvicorn.Config(app, uds=socket_path, log_level="info", access_log=True)
     server = uvicorn.Server(config)
-    
-    # Set socket permissions
-    def set_permissions():
-        os.chmod(socket_path, 0o666)
-    
-    # Run server
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    
     try:
         loop.run_until_complete(server.serve())
     finally:
-        if os.path.exists(socket_path):
-            os.remove(socket_path)
+        try:
+            current = socket_file.lstat()
+        except FileNotFoundError:
+            current = None
+        if current is not None and stat.S_ISSOCK(current.st_mode):
+            socket_file.unlink()
+        loop.close()
 
 
 if __name__ == "__main__":
