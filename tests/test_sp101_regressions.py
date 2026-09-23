@@ -76,13 +76,14 @@ class TestStructuralCanonicalization:
 
     def test_non_object_params_denied_not_crashed(self):
         """HEAD raised AttributeError on a list; decide() must be total."""
-        for params in (["a"], "str", 42, None):
+        for params in (["a"], "str", 42, None, False, 0, ""):
             call = {"tool_name": "t", "params": params}
-            # `or {}` in decide() turns falsy params into {}, which is a valid
-            # empty object; only genuinely non-object truthy params are denied.
-            expected = ("ALLOW", "within_thresholds") if not params else (
+            # Explicit non-object params are malformed even when falsy; only a
+            # genuinely omitted params field receives the empty-object default.
+            assert decide(BASE_CFG, _state(), call) == (
                 "DENY", "policy_violation:malformed_input")
-            assert decide(BASE_CFG, _state(), call) == expected
+        assert decide(BASE_CFG, _state(), {"tool_name": "t"}) == (
+            "ALLOW", "within_thresholds")
 
     def test_deep_nesting_is_bounded(self):
         deep = cur = {}
