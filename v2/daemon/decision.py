@@ -29,7 +29,7 @@ if _REPO_ROOT not in sys.path:
 # is the decision function the daemon runs in production. v2/spec/decide.py is a
 # forward-looking reference (richer layering) that is NOT wired into the daemon;
 # do not repoint this import to it without re-certifying against the fixtures.
-from shackle.conformance import canonical_hash, decide  # noqa: E402
+from shackle.conformance import canonical_hash, decide, decide_checked  # noqa: E402
 
 Verdict = str  # "ALLOW" | "DENY" | "HITL"
 
@@ -81,4 +81,8 @@ def decide_for_daemon(
         "circuit_tripped": False,
     }
     call = build_call(tool_name, parameters)
-    return decide(config, state, call)
+    # The daemon enforces whatever this returns, and its decide()
+    # may be a vendored or remote copy, so the result is validated here rather
+    # than trusted. decide_checked() never raises and never returns a verdict
+    # outside {ALLOW, DENY, HITL}.
+    return decide_checked(decide, config, state, call)

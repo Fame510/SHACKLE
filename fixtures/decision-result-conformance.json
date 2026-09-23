@@ -1,0 +1,629 @@
+{
+ "spec": "SP/1.0",
+ "revision": "SP/1.0.1",
+ "license": "Apache-2.0",
+ "attribution": "Dante Bullock (@Fame510), Sovereign Logic",
+ "description": "DECISION-RESULT vectors. Additive under the existing SP/1.0.1 revision — no new revision label. Separate from the 15 published SP/1.0 vectors in conformance.json (unchanged) and the SP/1.0.1 adversarial vectors in conformance-1.0.1.json (unchanged). These pin the CONSUMER side of the decision surface: what an enforcement layer must do when the decision result it receives is malformed, unrecognized, or otherwise out of contract. Earlier work proved fail-closed only when the decision function RAISED; these vectors cover the case where it RETURNS. Release requires an exact (\"ALLOW\", <reason>) pair; every other result is coerced to a verdict at least as restrictive as the one it carries.",
+ "canonicalization": {
+  "hash": "sha256",
+  "serialization": "json, keys sorted ascending, separators (',',':'), UTF-8",
+  "vector_hash": "sha256 over the whole vector minus the vector_hash key"
+ },
+ "envelope": {
+  "null": "language nil",
+  "string": "text",
+  "bytes": "UTF-8 byte string",
+  "bool": "boolean",
+  "number": "number",
+  "sequence": "container tuple|list|set over items[]",
+  "mapping": "object over entries{}",
+  "lying_string": "text-like object whose equality operator returns true for any comparison; skip and record the skip if the language cannot express it (language_specific: true)"
+ },
+ "fixtures": [
+  {
+   "name": "result_missing",
+   "raw": {
+    "kind": "null"
+   },
+   "expected_verdict": "DENY",
+   "expected_reason": "malformed_decision:missing",
+   "conformance_note": "No decision at all. A guard with no decision has not authorized anything.",
+   "vector_hash": "2ad8aa59c147e1f5911a26f3befa24b2a4c946abc298e967a5fbb7f984420901"
+  },
+  {
+   "name": "result_bare_string_two_chars",
+   "raw": {
+    "kind": "string",
+    "value": "OK"
+   },
+   "expected_verdict": "DENY",
+   "expected_reason": "malformed_decision:not_a_pair",
+   "conformance_note": "A 2-character string unpacks element-wise into ('O','K') in languages that destructure strings; it is not a decision pair.",
+   "vector_hash": "c537ca6f59bf0c818e1f66c01131e4ec8d2127daccc246bab1d922479c3cf4e0"
+  },
+  {
+   "name": "result_bare_string_allow",
+   "raw": {
+    "kind": "string",
+    "value": "ALLOW"
+   },
+   "expected_verdict": "DENY",
+   "expected_reason": "malformed_decision:not_a_pair",
+   "conformance_note": "Verdict without a reason is not a pair; an unrecordable release is denied.",
+   "vector_hash": "8d4096aac7926aba91d6b1034314013b82300f4baa966a78d7279d777c76e1f2"
+  },
+  {
+   "name": "result_bytes_allow",
+   "raw": {
+    "kind": "bytes",
+    "value": "ALLOW"
+   },
+   "expected_verdict": "DENY",
+   "expected_reason": "malformed_decision:not_a_pair",
+   "conformance_note": "Byte string is not the text enum member.",
+   "vector_hash": "7215a444a21676eb5d50dae51d45f1c1a79edf27cbe830d0f6baebe34461bb83"
+  },
+  {
+   "name": "result_mapping",
+   "raw": {
+    "kind": "mapping",
+    "entries": {
+     "verdict": {
+      "kind": "string",
+      "value": "ALLOW"
+     },
+     "reason": {
+      "kind": "string",
+      "value": "within_thresholds"
+     }
+    }
+   },
+   "expected_verdict": "DENY",
+   "expected_reason": "malformed_decision:not_a_pair",
+   "conformance_note": "Object/dict shape is out of contract. Not silently re-read as a pair: a producer that cannot return the contract shape is not trusted to ALLOW.",
+   "vector_hash": "89b892454bc1173655dbeceb31e6ccb346e009c1c3eac79306b23e2d6bd69eff"
+  },
+  {
+   "name": "result_unordered_set",
+   "raw": {
+    "kind": "sequence",
+    "container": "set",
+    "items": [
+     {
+      "kind": "string",
+      "value": "ALLOW"
+     },
+     {
+      "kind": "string",
+      "value": "within_thresholds"
+     }
+    ]
+   },
+   "expected_verdict": "DENY",
+   "expected_reason": "malformed_decision:not_a_pair",
+   "conformance_note": "An unordered container has no first element, so it can never be read as (verdict, reason).",
+   "vector_hash": "5ff060f9ff66044962409baaf4aa96dcfc36a54148a7cf33aa873ecaf5dfef89"
+  },
+  {
+   "name": "result_empty_sequence",
+   "raw": {
+    "kind": "sequence",
+    "container": "tuple",
+    "items": []
+   },
+   "expected_verdict": "DENY",
+   "expected_reason": "malformed_decision:bad_arity",
+   "conformance_note": "Arity 0.",
+   "vector_hash": "847c068cc632fe21200202d7535ac1c4ef4687ea297ca4435b4303814e6e3ca8"
+  },
+  {
+   "name": "result_one_element",
+   "raw": {
+    "kind": "sequence",
+    "container": "tuple",
+    "items": [
+     {
+      "kind": "string",
+      "value": "DENY"
+     }
+    ]
+   },
+   "expected_verdict": "DENY",
+   "expected_reason": "malformed_decision:bad_arity",
+   "conformance_note": "Arity 1.",
+   "vector_hash": "d0822eff3fd06dd5ad83d918c49242a0cd4831bd7cd6c49221a12ebff7ee7afc"
+  },
+  {
+   "name": "result_three_elements",
+   "raw": {
+    "kind": "sequence",
+    "container": "tuple",
+    "items": [
+     {
+      "kind": "string",
+      "value": "ALLOW"
+     },
+     {
+      "kind": "string",
+      "value": "within_thresholds"
+     },
+     {
+      "kind": "string",
+      "value": "extra"
+     }
+    ]
+   },
+   "expected_verdict": "DENY",
+   "expected_reason": "malformed_decision:bad_arity",
+   "conformance_note": "Arity 3: an extra field may carry meaning this enforcer cannot read.",
+   "vector_hash": "bfdd7c8c105c7e747eb9205a843274dda3810debf5075852f43d12520772c7d9"
+  },
+  {
+   "name": "result_verdict_true",
+   "raw": {
+    "kind": "sequence",
+    "container": "tuple",
+    "items": [
+     {
+      "kind": "bool",
+      "value": true
+     },
+     {
+      "kind": "string",
+      "value": "within_thresholds"
+     }
+    ]
+   },
+   "expected_verdict": "DENY",
+   "expected_reason": "malformed_decision:verdict_not_a_string",
+   "conformance_note": "Truthy non-string verdict. The classic fail-open: `if verdict` is true.",
+   "vector_hash": "1e29d0d5468760f60f1faf198ae56e49351b94d3d3e2bbccb226745c62fb5755"
+  },
+  {
+   "name": "result_verdict_number",
+   "raw": {
+    "kind": "sequence",
+    "container": "tuple",
+    "items": [
+     {
+      "kind": "number",
+      "value": 1
+     },
+     {
+      "kind": "string",
+      "value": "ok"
+     }
+    ]
+   },
+   "expected_verdict": "DENY",
+   "expected_reason": "malformed_decision:verdict_not_a_string",
+   "conformance_note": "Numeric verdict code is not the SP/1.0 enum.",
+   "vector_hash": "c2717e398ba0da57595e05c5865519721dad3f74fa0eda3fcd4aa871239d47eb"
+  },
+  {
+   "name": "result_verdict_null",
+   "raw": {
+    "kind": "sequence",
+    "container": "tuple",
+    "items": [
+     {
+      "kind": "null"
+     },
+     {
+      "kind": "null"
+     }
+    ]
+   },
+   "expected_verdict": "DENY",
+   "expected_reason": "malformed_decision:verdict_not_a_string",
+   "conformance_note": "Null verdict.",
+   "vector_hash": "f3e17af9a9fee30b905921fabb1d1c52167fe620bbceb4f9e51bd8f286a4a0a6"
+  },
+  {
+   "name": "result_verdict_nested_pair",
+   "raw": {
+    "kind": "sequence",
+    "container": "tuple",
+    "items": [
+     {
+      "kind": "sequence",
+      "container": "tuple",
+      "items": [
+       {
+        "kind": "string",
+        "value": "ALLOW"
+       },
+       {
+        "kind": "string",
+        "value": "x"
+       }
+      ]
+     },
+     {
+      "kind": "string",
+      "value": "y"
+     }
+    ]
+   },
+   "expected_verdict": "DENY",
+   "expected_reason": "malformed_decision:verdict_not_a_string",
+   "conformance_note": "Nested structure where a verdict was expected.",
+   "vector_hash": "ee14e18577b34313dfcab243e807e891fc6ac3b6c9cdfca754839b5bee78b6d6"
+  },
+  {
+   "name": "result_unknown_verdict",
+   "raw": {
+    "kind": "sequence",
+    "container": "tuple",
+    "items": [
+     {
+      "kind": "string",
+      "value": "PERMIT"
+     },
+     {
+      "kind": "string",
+      "value": "looks_fine"
+     }
+    ]
+   },
+   "expected_verdict": "DENY",
+   "expected_reason": "malformed_decision:unknown_verdict",
+   "conformance_note": "Unrecognized verdict from a newer or foreign producer: DENY, never a pass-through.",
+   "vector_hash": "e804cb5684d5a95c43c512a5bb400dddf1754d210aa972e656617f0fe39db3f5"
+  },
+  {
+   "name": "result_verdict_lowercase_allow",
+   "raw": {
+    "kind": "sequence",
+    "container": "tuple",
+    "items": [
+     {
+      "kind": "string",
+      "value": "allow"
+     },
+     {
+      "kind": "string",
+      "value": "within_thresholds"
+     }
+    ]
+   },
+   "expected_verdict": "DENY",
+   "expected_reason": "malformed_decision:unknown_verdict",
+   "conformance_note": "Case variant. NOT normalized to ALLOW: case-folding an out-of-contract producer's verdict would invent an authorization.",
+   "vector_hash": "428a5cd586024e76e818a04056dd068970aad2a8d92e161c5d8e69b14801a7fe"
+  },
+  {
+   "name": "result_verdict_padded_allow",
+   "raw": {
+    "kind": "sequence",
+    "container": "tuple",
+    "items": [
+     {
+      "kind": "string",
+      "value": " ALLOW "
+     },
+     {
+      "kind": "string",
+      "value": "within_thresholds"
+     }
+    ]
+   },
+   "expected_verdict": "DENY",
+   "expected_reason": "malformed_decision:unknown_verdict",
+   "conformance_note": "Whitespace variant. Not trimmed into a release, same reasoning.",
+   "vector_hash": "c13c055a074c27793efb39327489c750a41bf8c1bf735abd2c3a106d85965951"
+  },
+  {
+   "name": "result_verdict_empty_string",
+   "raw": {
+    "kind": "sequence",
+    "container": "tuple",
+    "items": [
+     {
+      "kind": "string",
+      "value": ""
+     },
+     {
+      "kind": "string",
+      "value": ""
+     }
+    ]
+   },
+   "expected_verdict": "DENY",
+   "expected_reason": "malformed_decision:unknown_verdict",
+   "conformance_note": "Empty verdict.",
+   "vector_hash": "1fbf3350cfc5fc8d717345cb52b65819a34b212d47f60648f3da602e5f22630d"
+  },
+  {
+   "name": "result_verdict_lowercase_deny",
+   "raw": {
+    "kind": "sequence",
+    "container": "tuple",
+    "items": [
+     {
+      "kind": "string",
+      "value": "deny"
+     },
+     {
+      "kind": "string",
+      "value": "circuit_open"
+     }
+    ]
+   },
+   "expected_verdict": "DENY",
+   "expected_reason": "malformed_decision:unknown_verdict",
+   "conformance_note": "Case-variant DENY is still refused execution: coercion is one-directional toward the restrictive outcome.",
+   "vector_hash": "abb0419956a1283fb6a59b631d05834c43961468be8c40c9e66fa50eb70bee1e"
+  },
+  {
+   "name": "result_verdict_lowercase_hitl",
+   "raw": {
+    "kind": "sequence",
+    "container": "tuple",
+    "items": [
+     {
+      "kind": "string",
+      "value": "hitl"
+     },
+     {
+      "kind": "string",
+      "value": "needs_review"
+     }
+    ]
+   },
+   "expected_verdict": "DENY",
+   "expected_reason": "malformed_decision:unknown_verdict",
+   "conformance_note": "Case-variant HITL becomes DENY, which is strictly more restrictive than the HITL it appears to request. Never less.",
+   "vector_hash": "4df15272b71bed331dfb776517940eba241dfd3895f5f2c269098655922ed376"
+  },
+  {
+   "name": "result_allow_reason_null",
+   "raw": {
+    "kind": "sequence",
+    "container": "tuple",
+    "items": [
+     {
+      "kind": "string",
+      "value": "ALLOW"
+     },
+     {
+      "kind": "null"
+     }
+    ]
+   },
+   "expected_verdict": "DENY",
+   "expected_reason": "malformed_decision:reason_not_a_string",
+   "conformance_note": "In-contract verdict, unusable reason. Release requires an auditable reason, so this denies.",
+   "vector_hash": "e943d31d7be83f51c73b99b1844753bfd3b68814004fe0ff3e244fdd65892475"
+  },
+  {
+   "name": "result_allow_reason_empty",
+   "raw": {
+    "kind": "sequence",
+    "container": "tuple",
+    "items": [
+     {
+      "kind": "string",
+      "value": "ALLOW"
+     },
+     {
+      "kind": "string",
+      "value": "   "
+     }
+    ]
+   },
+   "expected_verdict": "DENY",
+   "expected_reason": "malformed_decision:reason_not_a_string",
+   "conformance_note": "Whitespace-only reason is not a reason.",
+   "vector_hash": "b05ef2962c77f5678db1aff22f2e2e29ff0ae365e8cf24f1aacc0976ebd2f5ec"
+  },
+  {
+   "name": "result_allow_reason_number",
+   "raw": {
+    "kind": "sequence",
+    "container": "tuple",
+    "items": [
+     {
+      "kind": "string",
+      "value": "ALLOW"
+     },
+     {
+      "kind": "number",
+      "value": 7
+     }
+    ]
+   },
+   "expected_verdict": "DENY",
+   "expected_reason": "malformed_decision:reason_not_a_string",
+   "conformance_note": "Non-text reason.",
+   "vector_hash": "8ffa40a17899833862089d72e5b7f38680e2d70cc8366e40f9e9883adf3c40af"
+  },
+  {
+   "name": "result_allow_reason_control_chars",
+   "raw": {
+    "kind": "sequence",
+    "container": "tuple",
+    "items": [
+     {
+      "kind": "string",
+      "value": "ALLOW"
+     },
+     {
+      "kind": "string",
+      "value": "ok\ninjected=DENY"
+     }
+    ]
+   },
+   "expected_verdict": "DENY",
+   "expected_reason": "malformed_decision:reason_not_a_string",
+   "conformance_note": "Control characters would let a producer forge or split audit-log lines.",
+   "vector_hash": "2076c15937dbec1d66cf0c9626855f8a1e5ad392700e42b0c635ac2b0c3334f7"
+  },
+  {
+   "name": "result_deny_reason_missing",
+   "raw": {
+    "kind": "sequence",
+    "container": "tuple",
+    "items": [
+     {
+      "kind": "string",
+      "value": "DENY"
+     },
+     {
+      "kind": "null"
+     }
+    ]
+   },
+   "expected_verdict": "DENY",
+   "expected_reason": "malformed_decision:unspecified_reason",
+   "conformance_note": "DENY with an unusable reason keeps its verdict; only the label is repaired. Enforcement is never weakened by a bad reason.",
+   "vector_hash": "3585024a9862155d78d6a7a762d3ded5e6edf3f143dad859f040b7f5cbf08768"
+  },
+  {
+   "name": "result_hitl_reason_missing",
+   "raw": {
+    "kind": "sequence",
+    "container": "tuple",
+    "items": [
+     {
+      "kind": "string",
+      "value": "HITL"
+     },
+     {
+      "kind": "null"
+     }
+    ]
+   },
+   "expected_verdict": "HITL",
+   "expected_reason": "malformed_decision:unspecified_reason",
+   "conformance_note": "Same for HITL.",
+   "vector_hash": "bff668bdba59fc7eb821624349228695892a61273782cfc64cadfcd3d4f6f717"
+  },
+  {
+   "name": "result_deny_reason_overlong",
+   "raw": {
+    "kind": "sequence",
+    "container": "tuple",
+    "items": [
+     {
+      "kind": "string",
+      "value": "DENY"
+     },
+     {
+      "kind": "string",
+      "value": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+     }
+    ]
+   },
+   "expected_verdict": "DENY",
+   "expected_reason": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "conformance_note": "Overlong reason is truncated to 200 characters, verdict preserved.",
+   "vector_hash": "4e66bc6f65fd13ae44dd3802564595d478a4e3198c184ff20c7279605ea9d7ab"
+  },
+  {
+   "name": "result_verdict_lying_string",
+   "raw": {
+    "kind": "sequence",
+    "container": "tuple",
+    "items": [
+     {
+      "kind": "lying_string",
+      "value": "ALLOW"
+     },
+     {
+      "kind": "string",
+      "value": "within_thresholds"
+     }
+    ]
+   },
+   "expected_verdict": "DENY",
+   "expected_reason": "malformed_decision:verdict_not_a_string",
+   "conformance_note": "Text-like object whose equality returns true for everything. An exact-type check refuses it; an equality check alone would release it.",
+   "vector_hash": "9a51402beb65a89728f555db4f9825fa2f99563866edd988e7660feb30f9ef8e"
+  },
+  {
+   "name": "result_valid_allow",
+   "raw": {
+    "kind": "sequence",
+    "container": "tuple",
+    "items": [
+     {
+      "kind": "string",
+      "value": "ALLOW"
+     },
+     {
+      "kind": "string",
+      "value": "within_thresholds"
+     }
+    ]
+   },
+   "expected_verdict": "ALLOW",
+   "expected_reason": "within_thresholds",
+   "conformance_note": "The only shape that releases a call.",
+   "vector_hash": "42ad8d30b58e35f54d01a5e1ee216904d83e271b342d10a0a68d413237f43c25"
+  },
+  {
+   "name": "result_valid_deny",
+   "raw": {
+    "kind": "sequence",
+    "container": "tuple",
+    "items": [
+     {
+      "kind": "string",
+      "value": "DENY"
+     },
+     {
+      "kind": "string",
+      "value": "circuit_open"
+     }
+    ]
+   },
+   "expected_verdict": "DENY",
+   "expected_reason": "circuit_open",
+   "conformance_note": "In-contract DENY passes through unchanged.",
+   "vector_hash": "e60fc9bd0f924bc571367f2e3714ca256461d26d3bbeed2b20f54f2899018c5c"
+  },
+  {
+   "name": "result_valid_hitl",
+   "raw": {
+    "kind": "sequence",
+    "container": "tuple",
+    "items": [
+     {
+      "kind": "string",
+      "value": "HITL"
+     },
+     {
+      "kind": "string",
+      "value": "fail_closed:opaque_context"
+     }
+    ]
+   },
+   "expected_verdict": "HITL",
+   "expected_reason": "fail_closed:opaque_context",
+   "conformance_note": "In-contract HITL passes through unchanged.",
+   "vector_hash": "108f71779491d1bdabef86f034b483a12e2eec485c01cb7eac6c7cb5c3c40b7b"
+  },
+  {
+   "name": "result_valid_allow_as_list",
+   "raw": {
+    "kind": "sequence",
+    "container": "list",
+    "items": [
+     {
+      "kind": "string",
+      "value": "ALLOW"
+     },
+     {
+      "kind": "string",
+      "value": "within_thresholds"
+     }
+    ]
+   },
+   "expected_verdict": "ALLOW",
+   "expected_reason": "within_thresholds",
+   "conformance_note": "An ordered 2-element list is the same pair; JSON has no tuple type, so list and tuple must behave identically.",
+   "vector_hash": "d07323ace4a3fe185e6527096dd4311e8b7c636b6417f47866e0a47d547a1aa1"
+  }
+ ]
+}
