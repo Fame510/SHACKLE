@@ -2,8 +2,8 @@
 Executable conformance harness for SHACKLE SP/1.0.
 Runs the pure reference decide() against every fixture in
 fixtures/conformance.json and asserts verdict + reason, verifies the
-canonical hash of each fixture's call.params, and verifies the SP/1.0.1
-vector_hash that seals each vector as a whole.
+canonical hash of each fixture's call.params, and verifies detached SP/1.0.1
+whole-vector seals without rewriting the byte-frozen published fixture file.
 
 Usage:
     pytest tests/test_conformance.py -v
@@ -11,6 +11,7 @@ Usage:
     python tests/test_conformance.py
 """
 
+import hashlib
 import json
 import os
 
@@ -18,7 +19,10 @@ from shackle.conformance import decide, canonical_hash, vector_hash
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _FIXTURES = os.path.join(_HERE, os.pardir, "fixtures", "conformance.json")
+_VECTOR_SEALS = os.path.join(_HERE, os.pardir, "fixtures", "conformance-vector-hashes.json")
 _FIXTURES_101 = os.path.join(_HERE, os.pardir, "fixtures", "conformance-1.0.1.json")
+# Exact published July 29 15-vector bytes, before the later inline license metadata.
+_PUBLISHED_FIXTURE_SHA256 = "6553a1bced5ccab8c4c4f14d2f8a7c255383c2d5342a9a0fae375eab92a3e8da"
 
 
 def _doc(path=_FIXTURES):
@@ -30,12 +34,23 @@ def _load(path=_FIXTURES):
     return _doc(path)["fixtures"]
 
 
+def _load_seals():
+    with open(_VECTOR_SEALS, "r", encoding="utf-8") as fh:
+        return json.load(fh)["fixtures"]
+
+
+def test_published_fixture_file_is_byte_frozen():
+    with open(_FIXTURES, "rb") as fh:
+        actual = hashlib.sha256(fh.read()).hexdigest()
+    assert actual == _PUBLISHED_FIXTURE_SHA256
+
+
 def test_published_vector_count_is_fifteen():
     """The public claim is '15 vectors, independently reproduced'.
 
-    SP/1.0.1 adds a field to each vector, not new vectors. New adversarial
-    vectors live in fixtures/conformance-1.0.1.json so this count -- and the
-    third-party reproductions that cite it -- stay exactly as published.
+    The published fixture file stays byte-frozen. SP/1.0.1 integrity seals
+    live in the detached conformance-vector-hashes.json sidecar, and new
+    adversarial vectors live in conformance-1.0.1.json.
     """
     assert len(_load()) == 15
 
@@ -62,26 +77,27 @@ def test_all_fixtures_canonical_hashes():
 
 
 def test_all_fixtures_vector_hashes():
-    """SP/1.0.1: the whole vector is sealed, not just the input preimage."""
+    """SP/1.0.1 seals each full vector out-of-band to preserve published bytes."""
+    doc = _doc(_VECTOR_SEALS)
+    assert doc["source_fixture_sha256"] == _PUBLISHED_FIXTURE_SHA256
+    seals = doc["fixtures"]
+    assert [entry["name"] for entry in seals] == [fx["name"] for fx in _load()]
     failures = []
-    for fx in _load():
-        if "vector_hash" not in fx:
-            failures.append(f"{fx['name']}: missing vector_hash")
-            continue
+    for fx, entry in zip(_load(), seals):
         got = vector_hash(fx)
-        if got != fx["vector_hash"]:
-            failures.append(f"{fx['name']}: vector_hash {got} != {fx['vector_hash']}")
+        if got != entry["vector_hash"]:
+            failures.append(f"{fx['name']}: vector_hash {got} != {entry['vector_hash']}")
     assert not failures, "Vector hash mismatches:\n" + "\n".join(failures)
 
 
 def test_vector_hash_detects_expected_output_tampering():
-    """The gap vector_hash closes: canonical_hash covers only call.params, so
-    flipping an expected verdict left every published hash still verifying."""
+    """The detached vector seal catches changes the params-only hash cannot."""
     fx = dict(_load()[0])
+    seal = _load_seals()[0]["vector_hash"]
     assert canonical_hash(fx["call"]["params"]) == fx["canonical_hash"]
     tampered = dict(fx, expected_verdict="DENY")
     assert canonical_hash(tampered["call"]["params"]) == tampered["canonical_hash"]
-    assert vector_hash(tampered) != fx["vector_hash"]
+    assert vector_hash(tampered) != seal
 
 
 # ── SP/1.0.1 adversarial vectors (separate file; the 15 stay 15) ──

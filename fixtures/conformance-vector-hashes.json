@@ -1,0 +1,71 @@
+{
+  "spec": "SHACKLE SP/1.0",
+  "seal_revision": "SP/1.0.1",
+  "license": "CC-BY-4.0",
+  "attribution": "SP/1.0 conformance fixtures © 2026 Dante Bullock — https://github.com/Fame510/SHACKLE (CC BY 4.0, see LICENSE-SPEC.md)",
+  "purpose": "Detached whole-vector integrity seals for the byte-frozen 15 published fixtures in conformance.json.",
+  "algorithm": "sha256(json.dumps(vector, sort_keys=True, separators=(',',':'), ensure_ascii=False, allow_nan=False).encode('utf-8')).hexdigest()",
+  "source_fixture_sha256": "6553a1bced5ccab8c4c4f14d2f8a7c255383c2d5342a9a0fae375eab92a3e8da",
+  "fixtures": [
+    {
+      "name": "allow_within_thresholds",
+      "vector_hash": "23cddfbf4ace53d2539e4f4d1a47f5c1c66e2df5ca87c0fa7ff880782723f6da"
+    },
+    {
+      "name": "deny_budget_exhausted",
+      "vector_hash": "42d80193582daf4e459d7391e82fbb3547103593659d2030d3fb84a181b77c33"
+    },
+    {
+      "name": "deny_max_repeat",
+      "vector_hash": "1ee04e23faabf95bf59389f77169ce290364d6e769c1ad5981631ee140fa897b"
+    },
+    {
+      "name": "deny_circuit_open",
+      "vector_hash": "4c65ae2a5b85456962426e81ad35a81da9507ab81d5aece9d42dc82654e3e9af"
+    },
+    {
+      "name": "deny_duplicate_nonce",
+      "vector_hash": "e2bcd4503bc9b1ecd4b6831ce52badb11cbe60a59dc9ef3ded2683f9765fc8cf"
+    },
+    {
+      "name": "hitl_threshold",
+      "vector_hash": "6cc0731c9b6127c121c7fcbbc7a442359ef93376503632ced6026b12fc7fbfd9"
+    },
+    {
+      "name": "hitl_always",
+      "vector_hash": "18e156c998d6f549e9f9936a3d994df7c67990b6f4277d9c789f212629c1ff73"
+    },
+    {
+      "name": "malformed_non_canonical_input",
+      "vector_hash": "0a3581244df7d2b02cbd19c2e099654bbe03a822aff28f79da04a621947fbc6f"
+    },
+    {
+      "name": "untestable_opaque_context",
+      "vector_hash": "c2b1a3e97a468a3283e514982be31261e0b1f84a5a2987e51d7827864d40f6a0"
+    },
+    {
+      "name": "hitl_transition_approve",
+      "vector_hash": "9ed8bc64822e1baaabf4b0564bb30eba105484610cfd15faf78481a26d86369b"
+    },
+    {
+      "name": "hitl_transition_reject",
+      "vector_hash": "6f32d10bb7942a60e349541cef9c596b705e8551c92840a433fd820a8d8f9f09"
+    },
+    {
+      "name": "hitl_transition_modify",
+      "vector_hash": "5e94dd077e73de6738f3508d1e5743738dd2201268922bd2ae1b57be518d193a"
+    },
+    {
+      "name": "hitl_transition_defer_escalate",
+      "vector_hash": "bc694d76aa4fd0cf3fe6830787aba74578afb526e50f07ef1fd0f63fbd7c8803"
+    },
+    {
+      "name": "hitl_transition_duplicate_resume",
+      "vector_hash": "a81e99a03338ad59dbca115fe749fc51d54d7071aee6aca0f1d60b1e0a165e36"
+    },
+    {
+      "name": "concurrent_budget_overrun",
+      "vector_hash": "3af85641351f73f60150a1314a1d3001517ccac2e5188548013a14579f735ab5"
+    }
+  ]
+}

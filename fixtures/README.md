@@ -18,18 +18,24 @@ sha256( json.dumps(params, sort_keys=True, separators=(",",":"),
 ```
 
 **`vector_hash`** *(added SP/1.0.1)* — the VECTOR seal. Covers the whole
-fixture minus the `vector_hash` key itself, under the same discipline.
+fixture under the same discipline.
 ```
-sha256( json.dumps({k:v for k,v in vector.items() if k != "vector_hash"},
-                   sort_keys=True, separators=(",",":"),
+sha256( json.dumps(vector, sort_keys=True, separators=(",",":"),
                    ensure_ascii=False, allow_nan=False).encode("utf-8") )
 ```
 
 `canonical_hash` pins only the input preimage, so `expected_verdict` and
 `expected_reason` could be edited with every published hash still verifying.
-`vector_hash` closes that. **`canonical_hash` keeps its SP/1.0 meaning and every
-published value is byte-identical** — `vector_hash` is a new field, not a
-redefinition.
+`vector_hash` closes that gap. To preserve the public artifact, the 15 vectors
+in `conformance.json` remain byte-for-byte frozen at the July 29 published
+bytes; their detached seals are in `conformance-vector-hashes.json`, bound to
+that file's SHA-256. New SP/1.0.1 adversarial vectors keep their seals inline in
+`conformance-1.0.1.json`. The integrity seal does not change the SP/1.0 fixture
+format.
+
+The byte-frozen July 29 JSON predates the later inline license and attribution
+fields. `LICENSE-SPEC.md` still covers the fixture directory and sets the CC BY
+4.0 attribution terms; redistribute the fixture with that notice/license.
 
 Implementations MUST:
 - sort object keys ascending before hashing,
@@ -57,8 +63,9 @@ negative control `evaluable_context_is_not_opaque_guard` catches the latter.
 ## Files
 | File | Contents |
 |---|---|
-| `conformance.json` | The **15 published SP/1.0 vectors**. Unchanged in count and in every `canonical_hash`, `expected_verdict` and `expected_reason`; SP/1.0.1 only adds the `vector_hash` field. |
-| `conformance-1.0.1.json` | SP/1.0.1 **adversarial** vectors: inputs the SP/1.0 reference implementation allowed and this revision denies or escalates. Includes one flagged `negative_control`. |
+| `conformance.json` | The **15 published SP/1.0 vectors**, byte-for-byte identical to the July 29 bytes independently reproduced by nutstrut. |
+| `conformance-vector-hashes.json` | SP/1.0.1 detached whole-vector SHA-256 seals for those 15 vectors, bound to the exact `conformance.json` SHA-256. |
+| `conformance-1.0.1.json` | SP/1.0.1 **adversarial** vectors: inputs the SP/1.0 reference implementation allowed and this revision denies or escalates. Includes one flagged `negative_control`; hashes remain inline in this separate file. |
 
 ## Layers exercised
 circuit breaker · nonce/replay · canonicalization · budget (exhausted /

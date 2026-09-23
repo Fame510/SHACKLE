@@ -350,7 +350,9 @@ coercion is one-directional and never yields ALLOW.
 Vectors: `fixtures/decision-result-conformance.json`. These reasons are
 additive under the existing SP/1.0.1 revision: they only add DENY/HITL outcomes
 to results that previously fell through to execution, so no revision label
-changes and the published fixture files are untouched.
+changes. The original 15-vector `fixtures/conformance.json` remains byte-frozen;
+its SP/1.0.1 whole-vector seals are stored separately in
+`fixtures/conformance-vector-hashes.json`.
 
 ### 3.6 The HITL Transition Contract
 
