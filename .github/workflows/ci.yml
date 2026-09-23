@@ -29,8 +29,10 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pytest rich
-          pip install -e .
+          # Install the package's complete test extra plus the V2 daemon runtime
+          # dependencies imported by tests/test_adversarial_hardening.py.
+          pip install -e ".[dev]"
+          pip install -r v2/daemon/requirements.txt
       - name: Run conformance + core tests
         run: |
           set +e
@@ -70,6 +72,9 @@ jobs:
           --health-retries 10
     env:
       REDIS_URL: redis://localhost:6379/0
+      # State/decision tests run from v2/daemon but also import the repo-root
+      # shackle package. Keep both roots explicit for every daemon job step.
+      PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/v2/daemon
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
