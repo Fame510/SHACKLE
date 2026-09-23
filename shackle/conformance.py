@@ -19,7 +19,13 @@ Revision SP/1.0.1 (see SPEC_REVISION) is a strict tightening of SP/1.0:
   * the HITL transition contract validates original_nonce /
     original_args_digest / successor_nonce / successor_args_digest /
     terminal_status and fails closed on any mismatch, unknown decision, or
-    unbound authorization.
+    unbound authorization;
+  * decision RESULTS are validated at the consumer boundary
+    (normalize_decision / decide_checked), so an enforcement layer cannot act
+    on a malformed or unrecognized decision — see the section below.
+    This is a strict tightening in the same direction and introduces no new
+    revision label: it only adds DENY/HITL outcomes to results that previously
+    fell through to execution.
 All 15 published SP/1.0 vectors keep their existing canonical_hash,
 expected_verdict and expected_reason under this revision. SP/1.0.1 only adds
 DENY outcomes to inputs that previously fell through to ALLOW.
@@ -93,6 +99,127 @@ def vector_hash(fixture: Dict[str, Any]) -> str:
         allow_nan=False,
     )
     return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Decision-result validation (consumer boundary)
+# ──────────────────────────────────────────────────────────────────────
+# decide() is total and always returns a well-formed pair. The enforcement
+# layer, however, consumes a decision result produced by SOMETHING ELSE: a
+# vendored/older copy of decide(), a remote daemon reply, a third-party
+# reimplementation, a monkeypatched module, a proxy that rewrites payloads.
+# Previously the runtime proved fail-closed only for a decision function
+# that RAISED. A decision function that RETURNED an out-of-contract result was
+# not covered: an unrecognized verdict fell through every DENY/HITL branch in
+# core.py and the call executed, and a non-pair return crashed on tuple
+# unpacking outside any handler. Both are fixed at the consumer boundary here.
+#
+# The rule is one-directional and deliberately unforgiving:
+#   ALLOW is granted ONLY by an exact, in-contract ("ALLOW", <reason>) pair.
+#   Every other result is coerced to a verdict AT LEAST AS RESTRICTIVE as the
+#   one it appears to carry. Nothing is ever relaxed.
+# So "allow"/" ALLOW "/b"ALLOW"/1/True do NOT grant release: coercing them
+# would mean inventing an authorization on behalf of a producer that is
+# already demonstrably out of contract.
+
+DECISION_VERDICTS = frozenset({"ALLOW", "DENY", "HITL"})
+
+#: Longest reason string retained on the audit trail; longer values are cut.
+_MAX_REASON_LEN = 200
+
+def _clean_reason(reason: Any) -> Optional[str]:
+    """Return an audit-safe reason string, or None if unusable.
+
+    Rejects non-str (exact type), empty/whitespace-only, and any value
+    carrying control characters (which would let a hostile producer forge
+    or split audit-log lines). Truncates to _MAX_REASON_LEN.
+    """
+    if type(reason) is not str:
+        return None
+    if not reason.strip():
+        return None
+    if any(ch < " " or ch == "\x7f" for ch in reason):
+        return None
+    return reason[:_MAX_REASON_LEN]
+
+
+def normalize_decision(raw: Any) -> Tuple[Verdict, str]:
+    """Coerce ANY decision result into an enforceable (verdict, reason) pair.
+
+    Returns ("ALLOW", reason) if and only if `raw` is a 2-element tuple/list
+    whose first element is exactly the ``str`` "ALLOW" and whose second element
+    is a usable reason string. Every other input returns DENY, or HITL only
+    where the result itself already asked for exactly HITL.
+
+    Diagnostic reasons (each is a published decision-result vector):
+      malformed_decision:missing              raw is None
+      malformed_decision:not_a_pair           str/bytes/mapping/scalar/unordered
+      malformed_decision:bad_arity            sequence of length != 2
+      malformed_decision:verdict_not_a_string verdict is bool/int/None/bytes/...
+      malformed_decision:unknown_verdict      str verdict outside the enum
+                                              (includes case/whitespace variants)
+      malformed_decision:reason_not_a_string  ALLOW with an unusable reason
+      malformed_decision:unspecified_reason   DENY/HITL with an unusable reason
+
+    `type(...) is str` is intentional rather than isinstance: a str subclass
+    overriding __eq__/__hash__ could otherwise compare equal to "ALLOW"
+    without being it.
+    """
+    if raw is None:
+        return ("DENY", "malformed_decision:missing")
+    # A bare string is iterable and length-2 strings would otherwise unpack
+    # into ('O', 'K'); bytes and mappings are equally out of contract. An
+    # unordered container (set/frozenset) has no defined element order, so it
+    # can never be read as a pair.
+    if isinstance(raw, (str, bytes, bytearray, dict, set, frozenset)):
+        return ("DENY", "malformed_decision:not_a_pair")
+    if not isinstance(raw, (tuple, list)):
+        return ("DENY", "malformed_decision:not_a_pair")
+    if len(raw) != 2:
+        return ("DENY", "malformed_decision:bad_arity")
+
+    verdict, reason = raw[0], raw[1]
+    if type(verdict) is not str:
+        return ("DENY", "malformed_decision:verdict_not_a_string")
+    if verdict not in DECISION_VERDICTS:
+        # Exact-match only. A near-miss ("allow", " ALLOW ", "Deny", "hitl")
+        # is treated as an out-of-contract producer and denied outright —
+        # which is at least as restrictive as anything it could have meant.
+        return ("DENY", "malformed_decision:unknown_verdict")
+
+    cleaned = _clean_reason(reason)
+    if verdict == "ALLOW":
+        if cleaned is None:
+            # An authorization that cannot be recorded is not an
+            # authorization. Release requires a usable audit reason.
+            return ("DENY", "malformed_decision:reason_not_a_string")
+        return ("ALLOW", cleaned)
+    # DENY / HITL: preserve the restrictive verdict, repair only the label.
+    # Enforcement is never weakened because a reason was unusable.
+    if cleaned is None:
+        if verdict == "DENY":
+            return ("DENY", "malformed_decision:unspecified_reason")
+        return ("HITL", "malformed_decision:unspecified_reason")
+    return (verdict, cleaned)
+
+
+def decide_checked(
+    decide_fn: Any,
+    config: Dict[str, Any],
+    state: Dict[str, Any],
+    call: Dict[str, Any],
+) -> Tuple[Verdict, str]:
+    """Call `decide_fn` and return a guaranteed-enforceable decision pair.
+
+    Single entry point for every enforcement site: it closes BOTH failure
+    modes at once — a decision function that raises (already covered) and one
+    that returns an out-of-contract result. This function does not raise.
+    """
+    try:
+        raw = decide_fn(config, state, call)
+    except BaseException:  # noqa: BLE001 - a guard must not fail open on ANY throw
+        return ("DENY", "decide_unavailable_fail_closed")
+    return normalize_decision(raw)
 
 
 # ──────────────────────────────────────────────────────────────────────
