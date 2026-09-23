@@ -4,12 +4,25 @@
 [![Spec License: CC BY 4.0](https://img.shields.io/badge/Spec%20License-CC%20BY%204.0-lightgrey.svg)](LICENSE-SPEC.md)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 
-> **The runtime circuit breaker for autonomous AI agents.**
-> One decorator sits inside your runtime and stops runaway loops, budget overruns, and error cascades **before the next tool call fires**. It runs today, it's 100% client-side, and its reference implementation provably passes its own published conformance suite (SP/1.0).
+> **Runtime governance and conformance you can reproduce.** SHACKLE adds a Python runtime guard for repeated tool calls, estimated LLM spend, timeouts, and policy decisions. It also publishes **SP/1.0.1**, a versioned mediation contract with public, hash-pinned test profiles.
 
-**Status: stable.** SP/1.0 is a published standard: 15 hash-verifiable conformance fixtures, independently reproduced, with the reference implementation passing every vector in CI. The core hooks (litellm + BaseTool) are stable across CrewAI, LangChain/LangGraph, and AutoGen.
+**Current status (2026-09-23).** The reference code now includes model-aware pricing resolution, latched fail-closed aborts, pre-call timeout/budget gates, two-layer LiteLLM interception (including early-bound imports), native CrewAI hooks, and optional strict coverage-gap detection. These are shipped, regression-tested changes—not a claim that every framework path or deployment is covered. See [INTEGRATIONS.md](INTEGRATIONS.md) for path and version limits.
 
-> **Publication record.** First release commit **2026-06-17** (`9fbf7c3a`); V2 foundation **2026-06-18**. SP/1.0 specification published **2026-06-24**. Conformance fixtures published **2026-07-03**, hash-chained ledger **2026-07-04**, 14-vector suite with canonical SHA-256 hashes **2026-07-05**. `pyshackle 1.0.0` on PyPI **2026-07-20**. SP/1.0.1 (fail-open paths closed, runtime enforces `decide()`) **2026-07-30**. Independently reproduced by a third party on **2026-07-04** (9-fixture set) and **2026-07-29** (15-vector surface at `62dcbc7f`). Full dates, commit hashes, and the scope of what SP/1.0 does and does not claim: **[PROVENANCE.md](PROVENANCE.md)**.
+### What shipped in the latest runtime hardening
+
+- **Model-aware pricing:** exact model IDs, provider prefixes, and delimiter-bounded dated variants resolve to known pricing rows; unknown models use the default row with a warning. This fixes a tested undercount for IDs such as `openai/gpt-4` that previously landed on the generic default.
+- **Terminal-abort latching:** if a supported framework catches an interrupt, the original trigger remains latched and is surfaced at the `Guard` boundary; later hooked calls are denied.
+- **Pre-call gates:** supported LLM paths check known elapsed-time and exhausted-budget conditions before sending another request. Usage/cost accounting still depends on each integration's available token data and can be eventual on callback paths.
+- **Broader tested hooks:** LiteLLM module rebinding plus a call-time gate for early-bound imports, and native CrewAI before-tool / before-LLM / after-LLM hooks.
+- **Coverage visibility:** detected hook gaps are reported; `Guard(strict=True)` can refuse to run when detected gaps remain. Detection cannot prove that every custom/dynamic path has been found.
+
+These controls improve tested integration paths; SHACKLE is not a universal process sandbox and does not guarantee exact provider invoices or prevent every possible spend overrun. Keep provider-side limits and monitoring enabled.
+
+> **Certification is bound to an exact artifact.** The public registry and [verification report](CERTIFICATION-VERIFICATION-2026-09-23.md) bind the owner-verified reference v2 runtime to commit `d9fb4e3cdebf8a18caa4e14060ac22208a1ea4a6`, its recorded source digest, configuration, date, and four official hash-pinned profiles. Those profiles contain 15 + 14 + 31 + 22 = **82 cases**. Later hardening at `e93ef3c3060ea787e0d978fefcfa08e93eb0f79b` passed its own local tests and GitHub CI; it has **not** been rebound to the earlier certification entry or verified as the certified artifact. A profile pass is evidence for its named tests and artifact—not a guarantee of absolute security, production enforcement, legal sufficiency, or absence of vulnerabilities.
+
+> **Verification of the latest hardening commit:** reported local runs were **322 passed** from `tests/` and **393 passed** from the repository root. GitHub Actions [SHACKLE CI run 35928877645](https://github.com/Fame510/SHACKLE/actions/runs/35928877645) completed with all five jobs passing (Python 3.10–3.12, v2 daemon, secret scan). [Certification Verify run 35928877761](https://github.com/Fame510/SHACKLE/actions/runs/35928877761) passed conformance and registry checks; its separate `verify` job was skipped. The [Pages build/deploy run 35928875242](https://github.com/Fame510/SHACKLE/actions/runs/35928875242) succeeded.
+
+> **Publication record.** First release commit **2026-06-17** (`9fbf7c3a`); V2 foundation **2026-06-18**. SP/1.0 specification published **2026-06-24**; SP/1.0.1 implementation tightening **2026-07-30**. The original 15-vector surface has historical independent reproductions from July 4 and July 29. See **[PROVENANCE.md](PROVENANCE.md)** for dates, commits, attribution, and boundaries.
 
 ```bash
 pip install pyshackle
@@ -25,14 +38,16 @@ Frameworks like **CrewAI**, **AutoGen**, and **LangGraph** don't ship a native, 
 
 ## 🛡️ The Solution
 
-SHACKLE is a lightweight, zero-dependency governance layer that hooks into your runtime via dynamic Python shims. It intercepts **LLM calls** and **tool executions** client-side and tracks execution state deterministically. When an agent breaches your limits, SHACKLE trips the breaker, halts execution, and drops you into an interactive terminal console.
+SHACKLE is an in-process Python governance layer with a separate v2 sidecar option. `Guard` tracks execution state and attaches hooks to supported integration paths. When an observed tool/LLM call reaches a configured limit or policy gate, SHACKLE can deny, pause for operator input, or abort. Coverage depends on the framework path, installed integration, and configuration; it is not a universal process sandbox.
 
-- **1-line install**, no refactoring your agent topology
-- **Loop of Death prevention**: detects identical sequential tool calls and error cascades
-- **Budget enforcement**: real-time token tracking against a local pricing table
-- **Execution timeouts**: no more hung threads on dead APIs
-- **HITL console**: interactive Resume / Skip / Abort when a breaker trips
-- **100% client-side**: no telemetry, no phone-home, no hidden SaaS
+- **Loop controls**: detect repeated tool calls and tested error-cascade patterns
+- **Spend accounting**: resolve exact, provider-prefixed, and dated model IDs against known pricing rows; unknown models fall back to the default row with a warning
+- **Pre-call checks**: enforce known exhausted budget and elapsed-time limits at supported LLM call gates; post-call token usage remains integration-dependent
+- **Fail-closed handling**: latch terminal aborts across tested framework exception-swallowing paths
+- **Integration coverage visibility**: `Guard(strict=True)` can reject startup when detected coverage gaps remain
+- **Local by design for v1**: execution hooks run in the user's Python process; v2 provides a separate daemon architecture
+
+These are tested controls, not a guarantee of final provider billing accuracy, total framework coverage, or prevention of every spend overrun. Keep provider-side caps and monitoring enabled.
 
 ---
 
@@ -65,33 +80,33 @@ def run():
 run()
 ```
 
-That's it. SHACKLE dynamically hooks the underlying interpreters, so no framework source changes are needed.
+For the supported hooks on the versions and execution paths you use, this can add governance without changing framework internals. Check `Guard.last_coverage` and consult [INTEGRATIONS.md](INTEGRATIONS.md); the decorator alone does not establish that every provider/tool path is covered.
 
 ---
 
 ## ⚙️ The Four Circuit Breakers
 
-| Trigger | Condition | Default | What happens |
+| Trigger | Condition | Default | Effect on a covered path |
 |---|---|---|---|
-| **REPETITIVE_TOOL_CALL** | Same tool + same input N times, or input contains error signals | 3 attempts | Drops to HITL console |
-| **BUDGET_EXCEEDED** | Accumulated token cost exceeds limit (local pricing table) | $0.20 | Hard execution freeze |
-| **TIMEOUT_REACHED** | Wall-clock execution exceeds threshold | 180 seconds | Immediate halt |
-| **MAX_TOOL_CALLS** | Total tool invocations exceed limit | 50 calls | Hard stop |
+| **REPETITIVE_TOOL_CALL** | Same tool + same input repeated, with greater sensitivity for tested error signals | 3 attempts | Routes to the configured operator / deny behavior |
+| **BUDGET_EXCEEDED** | Estimated accumulated model cost reaches the configured limit | $0.20 | Denies or interrupts the next observed call; provider billing may differ |
+| **TIMEOUT_REACHED** | Wall-clock execution exceeds the configured threshold | 180 seconds | Stops a subsequent covered operation; does not forcibly terminate arbitrary native code |
+| **MAX_TOOL_CALLS** | Total observed tool invocations exceed the configured limit | 50 calls | Denies a subsequent covered tool call |
 
-SHACKLE **amplifies sensitivity** when tool inputs contain error signals (`401`, `500`, `timeout`, `unauthorized`, etc.), catching the "I'll just try again" loop before the agent burns tokens on a permission error it can't fix.
+Model pricing is resolved against the local table, including recognized provider prefixes and dated IDs. Unknown model rates fall back to the configured default row with a warning. Cost tracking is an estimate; retain provider-side caps and monitoring.
 
 ---
 
 ## 🔌 Works With
 
-| Framework | Support | Notes |
+| Framework | Current coverage | Boundary |
 |---|---|---|
-| **CrewAI** | ✅ Full | litellm hook + BaseTool hook + Agent.execute_task hook* |
-| **LangChain / LangGraph** | ✅ Full | litellm (completion/acompletion) + BaseTool (run/arun) hooks, sync + async |
-| **AutoGen** | ✅ Full | litellm interception catches all LLM calls |
-| **Smolagents** | ⬜ Planned | No wrapper ships yet. Smolagents routes through litellm in most setups, so the litellm hook already applies; a native reasoning-loop hook is not implemented. |
+| **CrewAI** | Native before-tool / before-LLM / after-LLM hooks, plus detected tool/agent hooks | Verified against the supported CrewAI 1.x test path; hook API and provider path matter. Not a claim that every CrewAI version or custom provider path is covered. |
+| **LangChain / LangGraph** | LiteLLM completion hooks and LangChain `BaseTool.run/arun` hooks where calls use those paths | No framework-wide coverage claim; unhooked call paths must be assessed separately. |
+| **AutoGen** | Supported AutoGen wrapper; LiteLLM gate applies to calls that route through LiteLLM | Guard does not ship a native AutoGen hook. Do not infer all AutoGen LLM calls are intercepted. |
+| **Smolagents** | No native Guard hook | Coverage is conditional on routing through a supported LiteLLM path; otherwise use another enforcement integration. |
 
-<sub>\* The core litellm and BaseTool hooks are stable. The newer hooks (CrewAI `Agent.execute_task`) are tracked with per-hook maturity notes in [INTEGRATIONS.md](INTEGRATIONS.md).</sub>
+`Guard.last_coverage` reports detected coverage gaps. `Guard(strict=True)` can refuse to start when it detects a gap; it cannot identify every custom or dynamically loaded path. See [INTEGRATIONS.md](INTEGRATIONS.md) for exact setup and limitations.
 
 **Deployment modes:** v1 runs in-process — ideal for development, CLI agents, and supervised workflows where a human can act on the HITL prompt. For headless production, the [v2 runtime](v2/README.md) moves decisions to a sidecar daemon with distributed budget state, Ed25519-signed audit logs, and remote HITL control. Same SP/1.0 contract in both modes.
 
@@ -101,11 +116,14 @@ SHACKLE **amplifies sensitivity** when tool inputs contain error signals (`401`,
 
 The front page keeps it short on purpose. Full detail lives in focused docs:
 
-- **[INTEGRATIONS.md](INTEGRATIONS.md)** — LiteLLM guardrails (pure `decide()` and stateful engine) + proxy `config.yaml`, and the AutoGen wrapper. One LiteLLM integration covers most of the framework stack through a single chokepoint.
-- **[CONFORMANCE.md](CONFORMANCE.md)** — the SP/1.0 conformance standard: the `ALLOW / DENY / HITL` decision surface, the `Required ⊆ Supported` model, the 15 hash-verifiable fixtures, and **how any runtime gets certified** and listed in the public [Conformance Registry](https://fame510.github.io/SHACKLE/registry.html).
-- **[v2/README.md](v2/README.md)** — the optional enterprise runtime: distributed budget state, cryptographically signed (SOC2-ready) audit logs, and remote HITL control for headless agents.
+- **[INTEGRATIONS.md](INTEGRATIONS.md)** — LiteLLM guardrails, the supported AutoGen wrapper, and integration-specific coverage limits.
+- **[CERTIFICATION.md](CERTIFICATION.md)** — certification policy, exact claim scope, exclusions, evidence requirements, and lifecycle.
+- **[CERTIFICATION-VERIFICATION-2026-09-23.md](CERTIFICATION-VERIFICATION-2026-09-23.md)** — owner verification record for the exact registry-bound runtime artifact and official profile hashes.
+- **[fixtures/certification-profiles.json](fixtures/certification-profiles.json)** — official profile IDs, applicability and SHA-256 pins (four profiles, 82 cases total).
+- **[CONFORMANCE.md](CONFORMANCE.md)** — the SP/1.0 decision surface and conformance model.
+- **[v2/README.md](v2/README.md)** — sidecar daemon architecture and setup.
 
-Run the proof yourself: `pytest tests/test_conformance.py` executes every SP/1.0 vector against the reference implementation.
+The 322/393 suite counts above describe the later runtime-hardening commit; they do not replace or amend the earlier certification report. For the certification claim, use its own pinned implementation, profile manifest and verification report.
 
 ---
 

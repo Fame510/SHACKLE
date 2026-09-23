@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SHACKLE — Runtime Circuit Breaker & SP/1.0 Conformance Standard for Autonomous AI Agents</title>
-<meta name="description" content="SHACKLE: the 1-Line Runtime Circuit Breaker and the SP/1.0 Conformance Standard for Autonomous AI Agents. Stop runaway token loops — and prove your runtime enforces the mediation contract with 15 verifiable conformance fixtures. Built by Dante Bullock, Sovereign Logic.">
+<title>SHACKLE — Runtime Governance & SP/1.0.1 Conformance</title>
+<meta name="description" content="SHACKLE is a Python runtime governance layer and the SP/1.0.1 mediation standard. Explore four public, hash-pinned certification profiles, the scoped reference-runtime verification record, and current CrewAI/LiteLLM hardening.">
 <style>
   /* ═══════════════════════════════════════════════════════════
      SHACKLE — BRUTALIST DEFENSE-GRADE INDUSTRIAL
@@ -715,7 +715,7 @@
 
 <!-- ═══════════════════════ HERO ═══════════════════════ -->
 <section class="hero">
-  <span class="hero-badge">⚠ Production Warning</span>
+  <span class="hero-badge">Runtime Governance · Published Evidence</span>
 
   <h1>
     YOUR AGENT<br>
@@ -731,7 +731,7 @@
   </div>
 
   <p class="hero-subtitle">
-    SHACKLE is the runtime governance layer that catches autonomous agents in silent infinite loops and halts the run before the next call &mdash; capping the bleed instead of letting it run unbounded. It is also <strong>SP/1.0</strong>: the authored, verifiable conformance standard for agent mediation &mdash; live today, and its reference implementation provably passes its own conformance suite. Works with CrewAI, LangGraph, AutoGen (sync &amp; async) &mdash; zero refactoring.
+    SHACKLE is a Python runtime governance layer for supported agent execution paths: repeat-call controls, model-aware spend estimates, timeouts, and operator decisions. It also publishes <strong>SP/1.0.1</strong>, an open mediation contract with four versioned, hash-pinned certification profiles. The reference runtime passed those profiles on its recorded artifact; today's later hardening adds native CrewAI hooks, broader LiteLLM interception, and explicit coverage-gap reporting. Exact scope, evidence, and exclusions are public.
   </p>
 
   <div class="hero-cta">
@@ -820,7 +820,7 @@
       Source: <a href="https://github.com/microsoft/autogen/issues/7770" style="color:var(--orange);">microsoft/autogen#7770</a> — @tzb1-ai, enterprise infrastructure operator
     </p>
     <p class="what-if">
-      SHACKLE's repeat-call + error-cascade breaker is built to trip on exactly this recursive-loop pattern—before it compounds.
+      SHACKLE includes repeat-call and error-signal controls for supported, tested execution paths. This report is context for the problem—not evidence that SHACKLE would have prevented that specific incident.
     </p>
   </div>
 </section>
@@ -852,41 +852,39 @@
   </div>
 
   <p>
-    SHACKLE hooks <code style="color:var(--orange);">litellm.completion</code> and <code style="color:var(--orange);">BaseTool.run</code>
-    at the interpreter level. No framework source changes. No refactoring. Works across CrewAI,
-    LangGraph, and AutoGen simultaneously.
+    SHACKLE attaches to supported execution seams rather than claiming universal framework coverage. Current runtime hooks include native CrewAI before-tool / before-LLM / after-LLM hooks, LiteLLM completion and call-time gates (including early-bound imports), and LangChain BaseTool run/arun. AutoGen uses its supported wrapper or a LiteLLM-routed path; unsupported paths must be assessed explicitly.
   </p>
 
   <div class="feature-grid">
     <div class="feature-item">
       <div class="icon">🛑</div>
-      <h4>Loop of Death Prevention</h4>
-      <p>Detects identical sequential tool calls and error cascades. Trips circuit breaker before quadratic token burn.</p>
+      <h4>Repeat-Call Controls</h4>
+      <p>Detects repeated tool calls and tested error-cascade patterns on covered hook paths; it is not a universal execution sandbox.</p>
     </div>
     <div class="feature-item">
       <div class="icon">💰</div>
-      <h4>Budget Enforcement</h4>
-      <p>Real-time token tracking against client-side pricing table. Hard freeze when budget is exhausted.</p>
+      <h4>Model-Aware Cost Estimates</h4>
+      <p>Matches known provider-prefixed and dated model IDs to pricing rows. Unknown rates fall back with a warning; provider billing can differ.</p>
     </div>
     <div class="feature-item">
       <div class="icon">⏱️</div>
-      <h4>Execution Timeouts</h4>
-      <p>Kills hung threads on dead APIs. No more frozen processes burning compute.</p>
+      <h4>Pre-Call Budget / Time Gate</h4>
+      <p>Supported LLM gates check known exhausted budget and elapsed time before a subsequent request. Token settlement depends on integration data.</p>
     </div>
     <div class="feature-item">
       <div class="icon">🖥️</div>
-      <h4>HITL Console</h4>
-      <p>Interactive terminal with Resume / Skip / Abort. Human stays in the loop when it matters.</p>
+      <h4>Operator Decisions</h4>
+      <p>Resume / Skip / Abort flows on supported interactive paths. Headless or event-loop boundaries fail closed instead of blocking for input.</p>
     </div>
     <div class="feature-item">
       <div class="icon">🔒</div>
-      <h4>100% Client-Side</h4>
-      <p>No telemetry. No phone-home. No hidden SaaS. Your agent data stays on your machine.</p>
+      <h4>Local Runtime Hooks</h4>
+      <p>V1 hooks execute in the user's Python process. The v2 sidecar is a separate deployment option; neither establishes host isolation by itself.</p>
     </div>
     <div class="feature-item">
       <div class="icon">🔀</div>
-      <h4>Cross-Framework</h4>
-      <p>CrewAI ✅ LangGraph ✅ AutoGen ✅ Smolagents ✅ — one decorator, all frameworks.</p>
+      <h4>Coverage Reporting</h4>
+      <p>Native CrewAI hooks, supported LiteLLM paths, and LangChain BaseTool hooks are detected; strict mode can reject detected gaps. Check custom paths separately.</p>
     </div>
   </div>
 </section>
@@ -894,111 +892,37 @@
 <!-- ═══════════════════════ COMPARISON ═══════════════════════ -->
 <section class="section">
   <span class="section-label">// Why SHACKLE Exists</span>
-  <h2>Nothing Else Does This.</h2>
+  <h2>A Focused Governance Layer.</h2>
   <p>
-    Every AI agent framework offers <em>some</em> safety mechanism — but none provide a
-    dedicated pre-execution circuit breaker with mathematically verified decision logic.
-    Here's the landscape:
+    SHACKLE focuses on runtime mediation for supported tool and LLM call paths: repeat-call controls, model-cost estimates, time limits, and explicit decisions. It complements framework controls and monitoring. Coverage depends on the installed integration and actual execution path; verify that boundary for each deployment.
   </p>
 
   <div style="overflow-x:auto;">
   <table class="comparison-table">
     <thead>
-      <tr>
-        <th>Capability</th>
-        <th>Prompt Guards</th>
-        <th>Framework Limits</th>
-        <th>LangSmith / Monitoring</th>
-        <th>SHACKLE</th>
-      </tr>
+      <tr><th>SHACKLE capability</th><th>What the current implementation does / boundary</th></tr>
     </thead>
     <tbody>
-      <tr>
-        <td>Pre-execution interception</td>
-        <td class="cross">✗ In-band</td>
-        <td class="cross">✗ Post-hoc</td>
-        <td class="cross">✗ Observability only</td>
-        <td class="check">✓ Process-level</td>
-      </tr>
-      <tr>
-        <td>Budget enforcement</td>
-        <td class="cross">✗</td>
-        <td class="partial">△ Token count only</td>
-        <td class="cross">✗</td>
-        <td class="check">✓ Per-session USD tracking</td>
-      </tr>
-      <tr>
-        <td>Loop-of-death detection</td>
-        <td class="cross">✗</td>
-        <td class="partial">△ Recursion limit</td>
-        <td class="partial">△ After-the-fact</td>
-        <td class="check">✓ 3-call repeat + error amplification</td>
-      </tr>
-      <tr>
-        <td>HITL (human-in-the-loop)</td>
-        <td class="cross">✗</td>
-        <td class="partial">△ Manual only</td>
-        <td class="cross">✗</td>
-        <td class="check">✓ CLI + WebSocket remote</td>
-      </tr>
-      <tr>
-        <td>Error signal detection</td>
-        <td class="cross">✗</td>
-        <td class="cross">✗</td>
-        <td class="cross">✗</td>
-        <td class="check">✓ 401/403/500/timeout cascade</td>
-      </tr>
-      <tr>
-        <td>Mathematical verification</td>
-        <td class="cross">✗</td>
-        <td class="cross">✗</td>
-        <td class="cross">✗</td>
-        <td class="check">✓ 9 invariants (Hypothesis-tested)</td>
-      </tr>
-      <tr>
-        <td>Cryptographic audit trail</td>
-        <td class="cross">✗</td>
-        <td class="cross">✗</td>
-        <td class="cross">✗</td>
-        <td class="check">✓ Ed25519-signed, immutable</td>
-      </tr>
-      <tr>
-        <td>Framework-agnostic</td>
-        <td class="cross">✗</td>
-        <td class="cross">✗ Framework-locked</td>
-        <td class="partial">△ LangChain only</td>
-        <td class="check">✓ Works with ANY agent</td>
-      </tr>
-      <tr>
-        <td>Zero-refactor integration</td>
-        <td class="partial">△ System prompt</td>
-        <td class="cross">✗ Requires config</td>
-        <td class="cross">✗ Requires SDK</td>
-        <td class="check">✓ One decorator: @Guard</td>
-      </tr>
-      <tr>
-        <td>Open source</td>
-        <td class="partial">△ Varies</td>
-        <td class="check">✓</td>
-        <td class="cross">✗ Proprietary SaaS</td>
-        <td class="check">✓ AGPLv3 + commercial</td>
-      </tr>
+      <tr><td>Repeat-call controls</td><td>Tracks repeated tool calls and tested error-signal patterns on hooked paths.</td></tr>
+      <tr><td>LLM cost estimates</td><td>Uses a local pricing table with provider-prefix and dated-model resolution; unknown models warn and use the default row. This is not the final provider invoice.</td></tr>
+      <tr><td>Pre-call checks</td><td>Supported LLM hooks can block a request when known budget or elapsed-time thresholds are already exhausted.</td></tr>
+      <tr><td>Operator decisions</td><td>Provides interactive control on supported paths; headless/event-loop constraints are handled fail-closed rather than blocking for terminal input.</td></tr>
+      <tr><td>Coverage visibility</td><td>Reports detected framework hook gaps; optional strict mode refuses to run when detected gaps exist. Dynamic/custom paths still require deployment-specific review.</td></tr>
+      <tr><td>Certification evidence</td><td>Publishes four hash-pinned profiles and an artifact-bound registry entry; evidence applies only to the identified artifact and declared scope.</td></tr>
     </tbody>
   </table>
   </div>
 
   <p style="margin-top:24px;">
-    <strong style="color:var(--orange);">The gap:</strong> Every framework has prompt guards, rate limits,
-    and monitoring. Nobody has a <em>pre-execution circuit breaker with mathematically verified
-    decision logic</em>. That's what SHACKLE is. One import. Zero refactoring. Works today.
+    <strong style="color:var(--orange);">Use it precisely:</strong> confirm the actual tool/LLM path is covered, use provider-side spend caps, and interpret certification only against the named profile hashes and tested artifact.
   </p>
 </section>
 
 <!-- ═══════════════════════ ARCHITECTURE ═══════════════════════ -->
 <section class="section section-dark">
   <span class="section-label">// Architecture</span>
-  <h2>Interpreter-Level Interception.</h2>
-  <p>SHACKLE sits between your agent and the runtime — not as middleware, but as a runtime shim.</p>
+  <h2>Hooks at Supported Boundaries.</h2>
+  <p>SHACKLE attaches to configured framework/provider hooks in the Python process. The diagram is conceptual: every application must verify that its actual execution path uses a supported hook.</p>
 
   <div class="arch-diagram">
 ┌─────────────────────────────────────────────────────────┐
@@ -1033,7 +957,7 @@
 <!-- ═══════════════════════ PARADIGM MATRIX ═══════════════════════ -->
 <section class="section">
   <span class="section-label">// Deployment</span>
-  <h2>Two Paradigms. One Protocol.</h2>
+  <h2>Two Deployment Modes. One Decision Contract.</h2>
 
   <div class="paradigm-matrix">
     <div class="paradigm-col local">
@@ -1055,7 +979,7 @@
         <li>Web/mobile remote HITL console</li>
         <li>Redis + Postgres — state survives crashes</li>
         <li>Distributed budget across serverless/K8s</li>
-        <li>SOC2 audit logs (cryptographically signed)</li>
+        <li>Cryptographically signed audit records (deployment controls remain separate)</li>
         <li>Commercial license available</li>
       </ul>
       <a href="mailto:docspoc101@gmail.com?subject=SHACKLE%20Enterprise%20Inquiry" class="btn btn-primary" style="margin-top:16px;">Contact for Pricing →</a>
@@ -1067,49 +991,42 @@
 <section class="section section-dark" id="standard">
     <div class="container">
       <div class="section-label">// The Standard</div>
-      <h2>From Circuit Breaker to Standard.</h2>
+      <h2>From Runtime Guard to Public Standard.</h2>
       <p class="section-intro">
-        SHACKLE started as a runtime circuit breaker. It is now the <strong>SP/1.0 conformance standard</strong>
+        SHACKLE includes a runtime circuit breaker and publishes the <strong>SP/1.0.1 conformance standard</strong>
         for runtime mediation of agent tool calls &mdash; an authored, verifiable contract that any runtime can be
         tested against.
       </p>
 
       <div class="standard-grid">
         <div class="standard-card">
-          <h4>Typed Decision Surface</h4>
-          <p><code>ALLOW</code> / <code>DENY</code> / <code>HITL</code> &mdash; a small, closed verdict set with typed reasons,
-          not free-text guesses.</p>
+          <h4>Closed Decision Surface</h4>
+          <p><code>ALLOW</code> / <code>DENY</code> / <code>HITL</code> are the named outcomes. Enforcement validates returned decision shapes rather than treating unknown values as implicit permission.</p>
         </div>
         <div class="standard-card">
           <h4>Conformance Model</h4>
-          <p><code>Valid(&tau;) &hArr; Required(&tau;) &sube; Supported(&tau;)</code>. A transition is valid iff every required
-          capability is supported.</p>
+          <p><code>Valid(&tau;) &hArr; Required(&tau;) &sube; Supported(&tau;)</code>. A transition is valid only when required capabilities are supported.</p>
         </div>
         <div class="standard-card">
-          <h4>15 Verifiable Fixtures</h4>
-          <p>10 decision-core + 5 HITL transition cases (approve / reject / modify / defer-escalate / duplicate-resume),
-          each a hash-verifiable vector.</p>
+          <h4>Four Pinned Profiles</h4>
+          <p>15 decision-surface, 14 SP/1.0.1 adversarial-input, 31 decision-result hardening, and 22 runtime-adversarial cases: <strong>82 cases</strong> with published SHA-256 identities.</p>
         </div>
         <div class="standard-card">
-          <h4>Reference Implementation</h4>
-          <p>A stdlib-only <code>decide()</code> produces every verdict. Run <code>pytest tests/test_conformance.py</code>
-          to prove conformance.</p>
+          <h4>Verification Record</h4>
+          <p>The registry binds the owner-verified reference runtime to an exact source commit, archive digest, configuration, date, profiles, and exclusions.</p>
         </div>
       </div>
 
       <p class="section-intro" style="margin-top:2rem;">
-        <strong>The core invariant:</strong> <em>history-visible &ne; runtime-executable.</em> A record that an action
-        happened is not proof the transition was supported. A runtime is <strong>SHACKLE-conformant</strong> iff it passes
-        the published fixtures &mdash; provable by reproduction, not assertion.
+        <strong>Core invariant:</strong> <em>history-visible &ne; runtime-executable.</em> A record that an action happened is not proof that the transition was supported. Conformance is evaluated against the named public fixtures and the exact result is reproducible.
       </p>
       <p class="section-intro" style="margin-top:1rem; font-size:.92rem; opacity:.8;">
-        <strong>Honest scope:</strong> the conformance layer (spec + 15 fixtures + reference <code>decide()</code>) is the
-        verified standard. The <code>@Guard</code> runtime is the reference integration &mdash; it uses the same canonical-hashing
-        discipline and is tested on Python 3.10&ndash;3.12, and consults the same reference <code>decide()</code> on every evaluated tool call and every LLM call &mdash; one decision surface, not two implementations that happen to agree.
+        <strong>Scope boundary:</strong> the current registry verification binds to reference-runtime commit <code>d9fb4e3cdebf8a18caa4e14060ac22208a1ea4a6</code>. Later hardening at <code>e93ef3c3060ea787e0d978fefcfa08e93eb0f79b</code> has separate passing local tests and green CI; the certification record has not been silently transferred to that later commit. This is evidence for named profiles and artifacts, not a guarantee of absolute security, all deployments, legal outcome, or absence of unknown vulnerabilities.
       </p>
       <div style="text-align:center; margin-top:2rem;">
-        <a href="https://github.com/Fame510/SHACKLE/blob/master/CONFORMANCE.md" class="btn btn-primary">Read the SP/1.0 Spec &rarr;</a>
-        <a href="https://github.com/Fame510/SHACKLE/blob/master/fixtures/conformance.json" class="btn btn-ghost">View the Fixtures &rarr;</a>
+        <a href="https://github.com/Fame510/SHACKLE/blob/master/CERTIFICATION.md" class="btn btn-primary">Read Certification Policy &rarr;</a>
+        <a href="https://github.com/Fame510/SHACKLE/blob/master/CERTIFICATION-VERIFICATION-2026-09-23.md" class="btn btn-ghost">View Verification Report &rarr;</a>
+        <a href="https://fame510.github.io/SHACKLE/registry.html" class="btn btn-ghost">View Registry &rarr;</a>
       </div>
     </div>
   </section>
@@ -1117,76 +1034,74 @@
   <section class="section" id="certify">
     <div class="container">
       <div class="section-label">// Certification</div>
-      <h2>Get SHACKLE Certified.</h2>
+      <h2>A Public, Reproducible Certification Bar.</h2>
       <p class="section-intro">
-        A certification is only worth what it can withstand. <strong>SHACKLE Certification</strong> proves &mdash; not
-        promises &mdash; that a runtime correctly enforces the SP/1.0 mediation contract, measured against
-        <strong>15 public, hash-verifiable conformance fixtures</strong>. The same vectors that certify you are the ones
-        anyone can re-run to check the claim. No trust required.
+        SHACKLE publishes a reviewable test-and-registry process for runtime mediation. Its four official profiles contain <strong>82 hash-pinned cases</strong> across the decision surface, SP/1.0.1 adversarial inputs, decision-result hardening, and runtime adversarial behavior. Each result is tied to the tested source artifact, configuration, date, and declared scope.
       </p>
 
       <div class="cert-explainer">
-        <p><strong>What SP/1.0 actually governs:</strong> every moment an autonomous agent is about to act &mdash; call a tool, spend budget, invoke another agent, execute a transaction. SP/1.0 defines, verifiably, whether that action is <code>ALLOW</code>, <code>DENY</code>, or <code>HITL</code> (halt for a human), on a simple contract: <em>a transition is valid only if everything it requires is within what the system provably supports</em>. Its core invariant &mdash; <em>history-visible &ne; runtime-executable</em> &mdash; means a rejected or deferred action can never "resume" its way past the guardrail. For a buyer, that answers the one question every acquirer and regulator asks about autonomy: <strong>can you prove it does only what it's allowed to do?</strong> A SHACKLE-certified runtime can &mdash; in minutes, from a clean clone.</p>
+        <p><strong>What a listing means:</strong> the identified implementation passed the exact profiles and hashes named in its registry entry under the recorded procedure. The result can be independently reproduced from the public artifacts. It is evidence about those tests and that artifact; it is <strong>not</strong> a claim of absolute safety, absence of unknown vulnerabilities, production enforcement on every deployment, regulatory approval, or legal outcome.</p>
       </div>
 
       <div class="standard-grid">
         <div class="standard-card">
-          <h4>SP/1.0-Core</h4>
-          <p>Core Conformance. All mediation fixtures pass &mdash; ALLOW / DENY / HITL verdicts and deny reasons match the spec.</p>
+          <h4>Decision surface — 15</h4>
+          <p>Published decision cases for the core ALLOW / DENY / HITL surface.</p>
         </div>
         <div class="standard-card">
-          <h4>SP/1.0-HITL</h4>
-          <p>Transition-Complete. Core, plus every human-in-the-loop transition: approve, reject, modify, defer-escalate, duplicate-resume.</p>
+          <h4>SP/1.0.1 adversarial input — 14</h4>
+          <p>Adversarial input cases for the published mediation contract.</p>
         </div>
         <div class="standard-card">
-          <h4>SP/1.0-Sovereign</h4>
-          <p>Enterprise Runtime. HITL, plus daemon atomic-state, ledger tamper-evidence, and audit export (V2 runtime).</p>
+          <h4>Decision-result hardening — 31</h4>
+          <p>Malformed and out-of-contract decision-result enforcement cases.</p>
+        </div>
+        <div class="standard-card">
+          <h4>Runtime adversarial — 22</h4>
+          <p>Selected runtime boundary, approval, replay, and concurrency cases; not an exhaustive attack enumeration.</p>
         </div>
       </div>
 
       <ol class="cert-steps">
-        <li><strong>Run the suite.</strong> Execute the conformance fixtures against your runtime: <code>pytest tests/test_conformance.py</code> (Core / HITL), plus <code>pytest v2/tests/test_v2_conformance.py</code> for the Sovereign level.</li>
-        <li><strong>Capture the evidence.</strong> SHACKLE emits a per-fixture pass/fail report with the fixture hashes verified. That report is your reproducible conformance artifact.</li>
-        <li><strong>Submit for listing.</strong> Open a certification request with your report to be added to the public SHACKLE Conformance Registry.</li>
-        <li><strong>Get listed.</strong> Verified runtimes are published with the level achieved, SP/1.0 version, and date.</li>
+        <li><strong>Inspect the policy and pins.</strong> Read the certification policy, profile manifest, registry entry, and report before interpreting a result.</li>
+        <li><strong>Reproduce the named artifact.</strong> Use the exact source commit, artifact digest, configuration, profile IDs, and hashes recorded in the registry.</li>
+        <li><strong>Submit case-level evidence.</strong> Include expected and observed outcomes, unsupported cases, failures, environment, and raw reproduction details.</li>
+        <li><strong>Review before listing.</strong> Intake is not automatic certification; the evidence must be evaluated against the published requirements.</li>
       </ol>
 
       <div class="cert-explainer">
-        <h4 style="color:var(--green);margin-bottom:8px;">An open standard. An open door.</h4>
-        <p>SP/1.0 is neutral and public. <strong>Any agent runtime &mdash; including competing frameworks and competing safety products &mdash; is invited to test against it and be listed.</strong> The fixtures are public, the verdicts are deterministic, the registry is open. We hold our own reference implementation to exactly the bar we ask of everyone else. A standard is only worth what it can withstand: if a runtime conforms, the registry proves it; if it doesn't, the fixtures show exactly where. The measure is public, and the same for everyone.</p>
+        <h4 style="color:var(--green);margin-bottom:8px;">Same public bar for every implementation.</h4>
+        <p>Any agent runtime—including competing frameworks and safety products—can test against the published profiles. The initial registry entry is the owner's self-verified reference-runtime result; it is not an independent certification or a third-party pass. Later code changes do not inherit that entry unless separately reverified and rebound.</p>
       </div>
 
       <div class="cta-row">
-        <a href="https://github.com/Fame510/SHACKLE/issues/new?template=certification_request.yml" class="btn btn-primary">Get Certified &rarr;</a>
-        <a href="./registry.html" class="btn btn-ghost">View the Registry &rarr;</a>
-        <a href="https://github.com/Fame510/SHACKLE/blob/master/fixtures/conformance.json" class="btn btn-ghost">The Fixtures &rarr;</a>
+        <a href="https://github.com/Fame510/SHACKLE/blob/master/CERTIFICATION.md" class="btn btn-primary">Read Certification Policy &rarr;</a>
+        <a href="https://github.com/Fame510/SHACKLE/blob/master/CERTIFICATION-VERIFICATION-2026-09-23.md" class="btn btn-ghost">Verification Report &rarr;</a>
+        <a href="https://fame510.github.io/SHACKLE/registry.html" class="btn btn-ghost">View Registry &rarr;</a>
+        <a href="https://github.com/Fame510/SHACKLE/issues/new?template=certification_request.yml" class="btn btn-ghost">Submit Evidence &rarr;</a>
       </div>
     </div>
   </section>
 
   <section class="section section-dark">
   <span class="section-label">// Evidence</span>
-  <h2>Don't Trust It. Re-Run It.</h2>
+  <h2>Evidence Has Its Own Scope.</h2>
   <p style="color:var(--gray);max-width:720px;">
-    SHACKLE's claims are built to be checked, not believed. Every one below is independently
-    verifiable from a clean clone &mdash; no quotes required.
+    Read each result against the artifact and procedure it actually covers. Earlier independent reproductions are historical; the latest reference certification is owner-verified, and later runtime hardening has separate green CI.
   </p>
 
   <div class="standard-grid" style="margin-top:28px;">
     <div class="standard-card">
-      <h4>Independently reproduced &mdash; twice</h4>
-      <p>An independent developer (<strong>@nutstrut</strong>) reproduced the published SP/1.0
-      fixture hashes from scratch on July 4 (<a href="https://github.com/crewAIInc/crewAI/issues/6025#issuecomment-4911510831" style="color:var(--orange);">public record</a>),
-      then re-ran the expanded 15-vector suite against current master on July 29 &mdash; all 15
-      reproduce, and the v1 hash chain detected tampering and reordering under the published tests
-      (<a href="https://github.com/crewAIInc/crewAI/issues/6025#issuecomment-5123740195" style="color:var(--orange);">public record</a>).
-      Not a testimonial &mdash; a reproduction.</p>
+      <h4>Independent historical review</h4>
+      <p>@nutstrut reproduced earlier fixture surfaces. His September SP/1.0.1 rerun identified two qualifications, which were addressed in a public follow-up. The four-profile certification still awaits any independent reproduction. <a href="https://github.com/Fame510/SHACKLE/issues/13#issuecomment-5707578677" style="color:var(--orange);">Review record</a> · <a href="https://github.com/Fame510/SHACKLE/issues/13#issuecomment-5802831246" style="color:var(--orange);">Voluntary invitation</a>.</p>
     </div>
     <div class="standard-card">
-      <h4>Reproducible conformance</h4>
-      <p>15 public, hash-verifiable fixtures behind a green CI pipeline. Clone the repo, run
-      <code>pytest tests/test_conformance.py</code>, and get the same verdicts &mdash;
-      <a href="https://github.com/Fame510/SHACKLE/blob/master/fixtures/conformance.json" style="color:var(--orange);">the fixtures are the proof</a>.</p>
+      <h4>Reference certification record</h4>
+      <p>The owner-verified profile result is bound to the recorded reference commit and four exact profile hashes; it is not an external certification. Read the <a href="https://github.com/Fame510/SHACKLE/blob/master/CERTIFICATION-VERIFICATION-2026-09-23.md" style="color:var(--orange);">verification report</a> and <a href="https://github.com/Fame510/SHACKLE/blob/master/registry.json" style="color:var(--orange);">registry</a>.</p>
+    </div>
+    <div class="standard-card">
+      <h4>Latest hardening CI</h4>
+      <p>The later hardening commit has a separate <a href="https://github.com/Fame510/SHACKLE/actions/runs/35928877645" style="color:var(--orange);">green five-job CI run</a>. This CI result is not a certification rebind of the earlier registry artifact.</p>
     </div>
     <div class="standard-card">
       <h4>The failure is documented</h4>
@@ -1214,13 +1129,9 @@
 <a id="integrations"></a>
 <section class="section">
   <span class="section-label">// Integrations</span>
-  <h2>Drop Into Your Stack.</h2>
+  <h2>Drop Into Supported Paths.</h2>
   <p style="color:var(--gray);max-width:720px;">
-    SHACKLE now ships first-class governance for the two biggest chokepoints in the
-    agent ecosystem &mdash; <strong>LiteLLM</strong> (the universal adapter under CrewAI,
-    AutoGen, LangGraph and thousands of custom agents) and <strong>Microsoft AutoGen</strong>.
-    One integration governs the whole supply chain, and every decision traces to the
-    hash-pinned SP/1.0 conformance fixtures.
+    Current source includes native CrewAI hook governance, two-layer LiteLLM interception, LangChain BaseTool hooks, and a supported AutoGen wrapper. Coverage is path-specific: AutoGen is not natively hooked, provider routes differ, and a wrapper or LiteLLM gate only governs calls that actually pass through it. Use strict coverage reporting as one signal, then verify the application path.
   </p>
   <div class="feature-grid" style="margin-top:28px;">
     <div class="feature-item">
@@ -1280,9 +1191,9 @@
       <ul>
         <li>Architecture audit of your agent topology</li>
         <li>Custom SHACKLE configuration for your models & tools</li>
-        <li>Conformance guidance against the SP/1.0 fixtures</li>
+        <li>Reproducible evidence review against the published certification policy</li>
         <li>Direct access to the engineer who authored the standard</li>
-        <li>Integration with your codebase (one decorator, zero refactors)</li>
+        <li>Integration scoping for the actual supported call paths in your codebase</li>
       </ul>
       <a href="mailto:docspoc101@gmail.com?subject=SHACKLE%20Production%20Inquiry" class="btn btn-primary">Get in Touch →</a>
     </div>
@@ -1327,7 +1238,7 @@
 
 <!-- ═══════════════════════ FOOTER ═══════════════════════ -->
 <footer>
-  <p class="who">SHACKLE — Black Box Flight Recorder for the AI Age</p>
+  <p class="who">SHACKLE — Runtime Governance and Reproducible Conformance</p>
   <p>
     The SP-1.0 spec and conformance fixtures are <a href="https://github.com/Fame510/SHACKLE/blob/master/LICENSE-SPEC.md">CC BY 4.0</a> — free to implement.
     The pyshackle runtime is <a href="https://www.gnu.org/licenses/agpl-3.0">AGPLv3</a> with commercial licensing available.
