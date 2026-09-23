@@ -37,7 +37,7 @@ from __future__ import annotations
 import uuid
 from typing import Any, Dict, Optional
 
-from shackle.conformance import decide, canonical_hash
+from shackle.conformance import decide, canonical_hash, decide_checked
 from shackle.core import (
     TriggerEngine,
     ExecutionState,
@@ -148,7 +148,13 @@ class ShackleGuardrail(CustomGuardrail):
 
     def _evaluate(self, request_data: Dict[str, Any]) -> None:
         call = self._build_call(request_data)
-        verdict, reason = decide(self.config, self.state, call)
+        # Validate the decision RESULT, not just catch a throw. The
+        # bare `verdict, reason = decide(...)` here raised TypeError/ValueError
+        # outside any handler if the decision source returned a non-pair (this
+        # module is importable against a vendored or remote decide()), and the
+        # ALLOW test below is an exact-match allow-list only because
+        # normalize_decision() guarantees the verdict is in the SP/1.0 enum.
+        verdict, reason = decide_checked(decide, self.config, self.state, call)
         if verdict == "ALLOW":
             tool = call["tool_name"]
             self.state["last_tool_name"] = tool
