@@ -27,8 +27,10 @@ Revision SP/1.0.1 (see SPEC_REVISION) is a strict tightening of SP/1.0:
     revision label: it only adds DENY/HITL outcomes to results that previously
     fell through to execution.
 All 15 published SP/1.0 vectors keep their existing canonical_hash,
-expected_verdict and expected_reason under this revision. SP/1.0.1 only adds
-DENY outcomes to inputs that previously fell through to ALLOW.
+expected_verdict and expected_reason under this revision. The published JSON
+file is byte-frozen; SP/1.0.1 whole-vector seals are stored in the detached
+fixtures/conformance-vector-hashes.json manifest. SP/1.0.1 only adds DENY
+outcomes to inputs that previously fell through to ALLOW.
 """
 
 from __future__ import annotations
@@ -90,8 +92,10 @@ def vector_hash(fixture: Dict[str, Any]) -> str:
     expected_verdict/expected_reason/conformance_note as one unit, using the same
     canonicalization discipline (sorted keys, tight separators, UTF-8, no NaN).
 
-    Added in SP/1.0.1 as a NEW field. canonical_hash keeps its SP/1.0 meaning
-    (argument digest) and its published values are unchanged.
+    Added in SP/1.0.1 as detached integrity metadata so the published
+    conformance.json artifact remains byte-for-byte unchanged. canonical_hash
+    keeps its SP/1.0 meaning (argument digest) and its published values are
+    unchanged.
     """
     sealed = {k: v for k, v in fixture.items() if k != "vector_hash"}
     serialized = json.dumps(
