@@ -1,7 +1,7 @@
-from .core import Guard, ShackleInterrupt, TriggerEngine, ExecutionState
+from .core import Guard, ShackleInterrupt, ShackleCoverageError, TriggerEngine, ExecutionState
 from .conformance import decide, canonical_hash
 
-__all__ = ["Guard", "ShackleInterrupt", "TriggerEngine", "ExecutionState",
+__all__ = ["Guard", "ShackleInterrupt", "ShackleCoverageError", "TriggerEngine", "ExecutionState",
     "decide",
     "canonical_hash",
 ]
