@@ -47,6 +47,8 @@ SPEC_REVISION = "SP/1.0.1"
 
 # Guard against pathological nesting when walking untrusted params.
 _MAX_DEPTH = 64
+_MAX_NODES = 50_000
+_MAX_CANONICAL_BYTES = 1_048_576
 
 # Reserved marker used by the language-neutral fixture format to denote the
 # class of input JSON cannot literally encode (NaN/Infinity, non-string keys).
@@ -175,9 +177,10 @@ def normalize_decision(raw: Any) -> Tuple[Verdict, str]:
     # into ('O', 'K'); bytes and mappings are equally out of contract. An
     # unordered container (set/frozenset) has no defined element order, so it
     # can never be read as a pair.
-    if isinstance(raw, (str, bytes, bytearray, dict, set, frozenset)):
-        return ("DENY", "malformed_decision:not_a_pair")
-    if not isinstance(raw, (tuple, list)):
+    # Exact built-in containers only. A list/tuple subclass can override
+    # __len__ or __getitem__ and run attacker-controlled code during the
+    # validation that is supposed to decide whether execution is authorized.
+    if type(raw) not in (tuple, list):
         return ("DENY", "malformed_decision:not_a_pair")
     if len(raw) != 2:
         return ("DENY", "malformed_decision:bad_arity")
@@ -230,30 +233,38 @@ def decide_checked(
 # Canonicalizability (SP/1.0.1 — replaces the __noncanonical__ literal test)
 # ──────────────────────────────────────────────────────────────────────
 
-def _walk_canonicalizable(value: Any, depth: int) -> Optional[str]:
-    """Depth-first structural check. Returns a diagnostic token or None."""
+def _walk_canonicalizable(value: Any, depth: int, budget: Optional[list[int]] = None) -> Optional[str]:
+    """Bounded depth-first check of the exact JSON data model."""
+    if budget is None:
+        budget = [0, 0]
+    budget[0] += 1
+    if budget[0] > _MAX_NODES:
+        return "max_nodes_exceeded"
     if depth > _MAX_DEPTH:
         return "max_depth_exceeded"
-    if value is None or isinstance(value, (bool, int, str)):
+    if type(value) is str:
+        budget[1] += len(value)
+        return "max_size_exceeded" if budget[1] > 250_000 else None
+    if value is None or type(value) in (bool, int):
         return None
-    if isinstance(value, float):
+    if type(value) is float:
         if math.isnan(value) or math.isinf(value):
             return "non_finite_number"
         return None
-    if isinstance(value, dict):
+    if type(value) is dict:
         for k, v in value.items():
-            # json.dumps silently coerces int/float/bool/None keys to strings,
-            # so two logically-distinct params can collide on one digest. The
-            # spec requires string keys; anything else is rejected outright.
-            if not isinstance(k, str):
+            if type(k) is not str:
                 return "non_string_key"
-            err = _walk_canonicalizable(v, depth + 1)
+            budget[1] += len(k)
+            if budget[1] > 250_000:
+                return "max_size_exceeded"
+            err = _walk_canonicalizable(v, depth + 1, budget)
             if err is not None:
                 return err
         return None
-    if isinstance(value, (list, tuple)):
+    if type(value) in (list, tuple):
         for item in value:
-            err = _walk_canonicalizable(item, depth + 1)
+            err = _walk_canonicalizable(item, depth + 1, budget)
             if err is not None:
                 return err
         return None
@@ -272,7 +283,7 @@ def canonicalization_error(params: Any) -> Optional[str]:
     canonical_hash() makes, so anything canonical_hash() would raise on is
     reported here as a policy violation instead of escaping as an exception.
     """
-    if not isinstance(params, dict):
+    if type(params) is not dict:
         return "not_an_object"
     if params.get(_NONCANONICAL_SENTINEL) is True:
         return "declared_non_canonicalizable"
@@ -280,11 +291,13 @@ def canonicalization_error(params: Any) -> Optional[str]:
     if err is not None:
         return err
     try:
-        json.dumps(
+        serialized = json.dumps(
             params, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
             allow_nan=False,
         )
-    except (TypeError, ValueError) as exc:
+        if len(serialized.encode("utf-8")) > _MAX_CANONICAL_BYTES:
+            return "max_size_exceeded"
+    except (TypeError, ValueError, RecursionError) as exc:
         return "unserializable:" + type(exc).__name__
     return None
 
@@ -417,6 +430,82 @@ def evaluate_transition(
     return ("ALLOW", allow_reason)
 
 
+def _is_finite_number(value: Any) -> bool:
+    return type(value) in (int, float) and (type(value) is int or math.isfinite(value))
+
+
+def _decision_input_error(config: Any, state: Any, call: Any) -> Optional[str]:
+    """Fail closed on malformed/untrusted decision boundary objects.
+
+    The decision API is a JSON-data contract, not an invitation to execute
+    arbitrary Python methods through mapping, scalar, or container subclasses.
+    Validate the complete trees first, then validate policy-critical fields so
+    later comparisons/arithmetic operate only on known primitive types.
+    """
+    if type(config) is not dict or type(state) is not dict or type(call) is not dict:
+        return "top_level_not_an_object"
+    for obj in (config, state, call):
+        err = _walk_canonicalizable(obj, 0)
+        if err is not None:
+            return err
+
+    if "budget_usd" not in config:
+        return "missing_budget_policy"
+    budget = config["budget_usd"]
+    if not _is_finite_number(budget) or budget < 0:
+        return "invalid_budget"
+    if "max_repeat_calls" in config:
+        maximum = config["max_repeat_calls"]
+        if type(maximum) is not int or maximum < 0:
+            return "invalid_repeat_limit"
+    if "hitl_mode" in config and config["hitl_mode"] not in ("never", "always", "on_threshold"):
+        return "invalid_hitl_mode"
+    if "hitl_budget_threshold" in config and config["hitl_budget_threshold"] is not None:
+        threshold = config["hitl_budget_threshold"]
+        if not _is_finite_number(threshold) or not 0 <= threshold <= 1:
+            return "invalid_hitl_threshold"
+
+    if "budget_initial_usd" in state:
+        initial = state["budget_initial_usd"]
+        if not _is_finite_number(initial) or initial < 0:
+            return "invalid_budget_state"
+    if "budget_remaining_usd" in state:
+        remaining = state["budget_remaining_usd"]
+        # Remaining may be negative after reconciliation with actual provider
+        # spend. That is a legitimate exhausted state and must reach the DENY
+        # rule; reject only malformed/non-finite state here.
+        if not _is_finite_number(remaining):
+            return "invalid_budget_state"
+    if "circuit_tripped" in state and type(state["circuit_tripped"]) is not bool:
+        return "invalid_circuit_state"
+    if "seen_nonces" in state and type(state["seen_nonces"]) is not list:
+        return "invalid_replay_state"
+    if "pending_transition" in state and state["pending_transition"] is not None and type(state["pending_transition"]) is not dict:
+        return "invalid_transition_state"
+    if "repeat_counts" in state:
+        counts = state["repeat_counts"]
+        if type(counts) is not dict or any(type(v) is not int or v < 0 for v in counts.values()):
+            return "invalid_repeat_state"
+    if "last_tool_name" in state and state["last_tool_name"] is not None and type(state["last_tool_name"]) is not str:
+        return "invalid_repeat_state"
+
+    if type(call.get("tool_name")) is not str or not call["tool_name"].strip():
+        return "invalid_tool_name"
+    # Missing params have the documented empty-object default. Explicit null,
+    # false, zero, empty strings/sequences, and objects with custom behavior do
+    # not mean "no arguments" and must never be coerced into an empty allow.
+    if "params" in call and type(call["params"]) is not dict:
+        return "invalid_params"
+    params = call.get("params", {})
+    if canonicalization_error(params) is not None:
+        return "invalid_params"
+    if "estimated_cost_usd" in call:
+        estimate = call["estimated_cost_usd"]
+        if not _is_finite_number(estimate) or estimate < 0:
+            return "invalid_cost_estimate"
+    return None
+
+
 def decide(
     config: Dict[str, Any],
     state: Dict[str, Any],
@@ -447,7 +536,11 @@ def decide(
     a policy choice, not an accident. Deployments that require budget to be
     absolute must not populate pending_transition once remaining reaches zero.
     """
-    params: Dict[str, Any] = call.get("params", {}) or {}
+    boundary_error = _decision_input_error(config, state, call)
+    if boundary_error is not None:
+        return ("DENY", "policy_violation:malformed_input")
+
+    params: Dict[str, Any] = call.get("params", {})
     pending = state.get("pending_transition")
 
     # 1. malformed / non-canonicalizable input

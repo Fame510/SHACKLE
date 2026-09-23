@@ -31,14 +31,14 @@ from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 
 SP_VERSION = "SP/1.0"
+SP_REVISION = "SP/1.0.1"
+_CERT_PROFILE_MANIFEST = Path(__file__).resolve().parents[1] / "fixtures" / "certification-profiles.json"
 
 # Dropdown labels in .github/ISSUE_TEMPLATE/certification_request.yml mapped to
 # the canonical level string used in registry.json. Keep these in sync; the test
 # suite asserts every template option resolves.
 LEVELS: Dict[str, str] = {
-    "SP/1.0-Core (mediation fixtures)": "SP/1.0-Core",
-    "SP/1.0-HITL (mediation + transition fixtures)": "SP/1.0-HITL",
-    "SP/1.0-Sovereign (HITL + daemon/ledger/audit, V2 runtime)": "SP/1.0-Sovereign",
+    "SP/1.0-Full-Runtime (all four official profiles)": "SP/1.0-Full-Runtime",
 }
 
 # GitHub writes this into an issue-form field the submitter left blank.
@@ -128,11 +128,16 @@ def _checked(value: str) -> List[str]:
 class Submission:
     runtime_name: str
     vendor: str
-    level: str            # canonical, e.g. "SP/1.0-Core"
+    level: str            # canonical, e.g. "SP/1.0-Full-Runtime"
     level_label: str      # as submitted
     sp_version: str
     report: str
     evidence_url: str
+    version_commit_digest: str = ""
+    platform_config: str = ""
+    source_url: str = ""
+    profile_ids: List[str] = field(default_factory=list)
+    fixture_hashes: Dict[str, str] = field(default_factory=dict)
     attestations: List[str] = field(default_factory=list)
 
     @classmethod
@@ -150,7 +155,12 @@ class Submission:
         vendor = need("Vendor / Organization")
         level_label = need("Certification Level Claimed")
         sp_version = need("SP Version Targeted")
-        report = need("Conformance Report")
+        sp_revision = need("SP Revision Targeted")
+        version_commit_digest = need("Exact Version, Immutable Commit, and Artifact Digest")
+        platform_config = need("Runtime, Platform, and Configuration Profile")
+        profile_hashes_json = need("Official Profile IDs and Fixture Hashes")
+        source_url = need("Immutable Source URL")
+        report = need("Complete Conformance and Adversarial Report")
         evidence_url = need("Reproducible Evidence URL")
 
         level = ""
@@ -170,9 +180,46 @@ class Submission:
             problems.append(
                 f"unsupported SP version: {sp_version!r} (this registry certifies {SP_VERSION})"
             )
+        if sp_revision and sp_revision != SP_REVISION:
+            problems.append(f"unsupported SP revision: {sp_revision!r} (this registry certifies {SP_REVISION})")
 
+        if version_commit_digest and not re.search(r"[0-9a-fA-F]{40,64}", version_commit_digest):
+            problems.append("version/commit/artifact field must include a full immutable 40-64 character commit or digest")
+        if version_commit_digest and not re.search(r"sha256[:= ]+[0-9a-fA-F]{64}", version_commit_digest, re.I):
+            problems.append("version/commit/artifact field must include the full SHA-256 artifact digest")
         if evidence_url:
             problems.extend(_evidence_problems(evidence_url))
+
+        claimed_profiles = []
+        claimed_hashes = {}
+        if profile_hashes_json:
+            try:
+                submitted_profiles = json.loads(profile_hashes_json)
+                if type(submitted_profiles) is not dict or type(submitted_profiles.get("profiles")) is not list:
+                    raise ValueError("expected object with profiles array")
+                manifest = json.loads(_CERT_PROFILE_MANIFEST.read_text())
+                official = [p for p in manifest["profiles"] if "full-runtime" in p["required_for"] and p["status"] == "official"]
+                observed = {p["id"]: p for p in submitted_profiles["profiles"] if type(p) is dict and type(p.get("id")) is str}
+                expected_ids = {p["id"] for p in official}
+                if set(observed) != expected_ids:
+                    problems.append(f"profile IDs must exactly match required official profile set: {', '.join(sorted(expected_ids))}")
+                for profile in official:
+                    submitted = observed.get(profile["id"])
+                    if submitted is None:
+                        continue
+                    for key in ("fixture_sha256", "fixture_bytes", "case_count"):
+                        manifest_key = "required_vectors" if key == "case_count" else key
+                        if submitted.get(key) != profile[manifest_key]:
+                            problems.append(f"profile {profile['id']} {key} does not match official manifest")
+                claimed_profiles = sorted(expected_ids)
+                claimed_hashes = {profile["id"]: profile["fixture_sha256"] for profile in official}
+            except (json.JSONDecodeError, OSError, ValueError, KeyError, TypeError) as exc:
+                problems.append(f"official profile hash report is invalid: {exc}")
+
+        if source_url:
+            problems.extend(_evidence_problems(source_url))
+            if version_commit_digest and not re.search(r"[0-9a-fA-F]{40,64}", source_url):
+                problems.append("immutable source URL must include the full tested commit hash")
 
         if report:
             problems.extend(_report_problems(report))
@@ -195,6 +242,11 @@ class Submission:
             sp_version=sp_version,
             report=report,
             evidence_url=evidence_url,
+            version_commit_digest=version_commit_digest,
+            platform_config=platform_config,
+            source_url=source_url,
+            profile_ids=claimed_profiles,
+            fixture_hashes=claimed_hashes,
             attestations=attestations,
         )
 
@@ -260,21 +312,31 @@ def propose_entry(
         "vendor": sub.vendor,
         "level": sub.level,
         "sp_version": sub.sp_version,
+        "version": sub.version_commit_digest,
+        "commit": re.search(r"[0-9a-fA-F]{40,64}", sub.version_commit_digest).group(0),
+        "artifact_digest": re.search(r"sha256[:= ]+([0-9a-fA-F]{64})", sub.version_commit_digest, re.I).group(1) if re.search(r"sha256[:= ]+([0-9a-fA-F]{64})", sub.version_commit_digest, re.I) else "not-separately-provided",
         "date": date,
+        "date_verified": date,
+        "expires_on": (_dt.date.fromisoformat(date) + _dt.timedelta(days=365)).isoformat(),
+        "profile_ids": sub.profile_ids,
+        "fixture_hashes": sub.fixture_hashes,
+        "test_report_url": sub.evidence_url,
         "evidence": sub.evidence_url,
+        "source_url": sub.source_url,
+        "verifier": "repository owner self-verification" if sub.vendor in {"Aeon_Dux / Sovereign Logic", "Sovereign Logic"} else "pending owner review",
+        "owner_approval": "approved by repository owner" if sub.vendor in {"Aeon_Dux / Sovereign Logic", "Sovereign Logic"} else "pending",
+        "scope": "Exact implementation/version/commit/artifact/configuration passed all required official SP/1.0.1 conformance and runtime-adversarial profiles on the verification date.",
+        "exclusions": "No absolute safety guarantee; excludes hostile OS/kernel and arbitrary hostile code already executing in-process, and other exclusions in CERTIFICATION.md.",
+        "status": "active" if sub.vendor in {"Aeon_Dux / Sovereign Logic", "Sovereign Logic"} else "proposed",
         "verifies": (
-            "Submitted conformance report against the published SP/1.0 fixture "
-            "set, verified by a maintainer as reproducible from the linked evidence."
+            "Submitted full-runtime report against all required official profiles, "
+            "reproduced by owner from immutable source and tied to exact fixture hashes."
         ),
-        "does_not_verify": "Implementation security or production enforcement.",
+        "does_not_verify": "Absolute security, hostile host/kernel resistance, unknown vulnerabilities, or untested deployment properties.",
         "review": {
             "status": "proposed",
             "reference_fixture_verdict": fixture_verdict,
             "reference_commit": reference_commit,
-            "requires": (
-                "Maintainer must re-run the submitter's linked evidence against "
-                "the published fixtures before this entry is listed."
-            ),
         },
     }
 
@@ -286,7 +348,7 @@ def propose_entry(
 _REQUIRED_BY_CLASS: Dict[str, Tuple[str, ...]] = {
     "reference_implementation": ("name", "vendor", "level", "version", "date", "evidence"),
     "independent_reproduction": ("party", "date", "surface", "verifies", "does_not_verify", "evidence"),
-    "certification": ("name", "vendor", "level", "date", "evidence", "verifies", "does_not_verify"),
+    "certification": ("name", "vendor", "level", "date", "evidence", "verifies", "does_not_verify", "version", "commit", "artifact_digest", "date_verified", "expires_on", "profile_ids", "fixture_hashes", "test_report_url", "source_url", "verifier", "owner_approval", "scope", "exclusions", "status"),
     "production_enforcement": ("name", "vendor", "level", "date", "evidence", "verifies"),
 }
 

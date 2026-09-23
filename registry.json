@@ -1,8 +1,15 @@
 {
   "sp_version": "SP/1.0",
-  "schema_version": "2",
-  "updated": "2026-07-29",
-  "note": "Public SHACKLE SP/1.0 Conformance Registry. Every entry belongs to a class that states exactly what it proves — no more, no less. Anyone can re-run the published fixtures to check any listing.",
+  "schema_version": "4",
+  "updated": "2026-09-23",
+  "note": "Public SHACKLE registry. Each claim is bound to an exact implementation, artifact, environment, fixture hashes, and stated scope; certification is not an absolute safety guarantee.",
+  "certification_policy": "CERTIFICATION.md",
+  "fixture_manifest": "fixtures/certification-profiles.json",
+  "certification_entry_schema": {
+    "required_fields": ["class", "name", "vendor", "level", "version", "commit", "artifact_digest", "date", "date_verified", "expires_on", "profile_ids", "fixture_hashes", "test_report_url", "evidence", "source_url", "verifier", "owner_approval", "scope", "exclusions", "status", "verifies", "does_not_verify"],
+    "status_values": ["active", "superseded", "expired", "suspended", "revoked"],
+    "binding_rule": "Certification attaches only to the exact version, commit, artifact digest, environment/configuration, and fixture hashes recorded in the entry. Material changes require fresh verification."
+  },
   "license": "Registry data and the SP/1.0 specification + fixtures are CC BY 4.0 (see LICENSE-SPEC.md). © 2026 Dante Bullock.",
   "class_definitions": {
     "reference_implementation": {
@@ -10,15 +17,15 @@
       "never_proves": ""
     },
     "independent_reproduction": {
-      "proves": "A named party independently re-ran the published conformance surface and reproduced it: fixture hashes, deterministic decision output, canonical argument binding, deny-reason semantics.",
-      "never_proves": "Certification, implementation security, or production enforcement."
+      "proves": "A named party independently reran the published profiles and reproduced the named fixture/test results.",
+      "never_proves": "Certification, implementation security, or production enforcement unless separately tested and listed."
     },
     "certification": {
-      "proves": "Reserved — no entries yet. A runtime passed the full published fixture set via a submitted, verified conformance report.",
-      "never_proves": "Implementation security or production enforcement."
+      "proves": "The identified implementation, version, immutable commit, artifact digest, environment/configuration, and exact fixture hashes passed every required officially published conformance and runtime-adversarial profile under the recorded reproducible procedure on the stated date. This is a scoped, time-bound security-assurance finding about the properties exercised by those tests, not an absolute guarantee. The repository owner may self-verify and publish; independent reproductions are invited after publication.",
+      "never_proves": "Absolute security or safety, absence of undiscovered vulnerabilities, hostile OS/kernel/hypervisor resistance, protection against arbitrary code already executing in-process, untested deployment or supply-chain security, legal outcome, warranty, or any attack class not explicitly listed in the tested profiles."
     },
     "production_enforcement": {
-      "proves": "Reserved — no entries yet; requires SP/1.0-Custody. Demonstrated fail-closed enforcement with capability custody in a deployed system.",
+      "proves": "Reserved — no entries yet; requires separate deployment-specific custody evidence.",
       "never_proves": ""
     }
   },
@@ -52,6 +59,35 @@
       "does_not_verify": "Mandatory mediation, capability custody, bypass resistance, production security, or the v2 daemon as a shipped package.",
       "evidence": "https://github.com/crewAIInc/crewAI/issues/6025#issuecomment-5123740195",
       "permission": "Granted by the verifier (crewAI#6025, comment 5125138712); correction or withdrawal honored on request."
+    },
+    {
+      "class": "certification",
+      "name": "SHACKLE Reference Python v2 Runtime",
+      "vendor": "Aeon_Dux / Sovereign Logic",
+      "level": "SP/1.0-Full-Runtime",
+      "version": "SHACKLE Python v2 reference runtime at commit feca97fd2333a1fb334df8bbeefc444cefffb881",
+      "commit": "feca97fd2333a1fb334df8bbeefc444cefffb881",
+      "artifact_digest": "SHA-256: 0e96f306e5475f619a238e31603fb48c3f80d32b8b92be75217aaabe5b0ec891",
+      "date": "2026-09-23",
+      "date_verified": "2026-09-23",
+      "expires_on": "2027-09-23",
+      "profile_ids": ["decision-surface-v1", "sp101-adversarial-input-v1", "decision-result-hardening-v1", "runtime-adversarial-v1"],
+      "fixture_hashes": {
+        "decision-surface-v1": "6553a1bced5ccab8c4c4f14d2f8a7c255383c2d5342a9a0fae375eab92a3e8da",
+        "sp101-adversarial-input-v1": "f9655ab7681edb5423cebfc39685ef1622c914009939bb2cba1e29e5028183d7",
+        "decision-result-hardening-v1": "84fd28ad0d96608265198b6afa43a01555c4d7d6dd75f934822345883e6ae8d2",
+        "runtime-adversarial-v1": "61243c33a666368e6246a2adfa500fe4658984c3156a4fba1350c78dec29b1b2"
+      },
+      "test_report_url": "https://github.com/Fame510/SHACKLE/blob/master/CERTIFICATION-VERIFICATION-2026-09-23.md",
+      "evidence": "https://github.com/Fame510/SHACKLE/commit/feca97fd2333a1fb334df8bbeefc444cefffb881",
+      "source_url": "https://github.com/Fame510/SHACKLE/tree/feca97fd2333a1fb334df8bbeefc444cefffb881",
+      "verifier": "repository owner self-verification",
+      "owner_approval": "approved by explicit owner direction in project chat",
+      "scope": "Full published conformance and runtime-adversarial profile battery for the reference Python v2 daemon/client. Local full suite passed 365 tests, zero failures, on 2026-09-23.",
+      "exclusions": "No absolute security guarantee. Excludes hostile OS/kernel/hypervisor, arbitrary hostile code already executing in-process, unknown attacks and other exclusions in CERTIFICATION.md.",
+      "status": "active",
+      "verifies": "The reference implementation passed every required official profile locally with the exact hashes recorded here, as of the stated verification date. Independent parties are invited to reproduce against the public artifacts after publication.",
+      "does_not_verify": "Absolute safety, hostile operating-system/kernel control, or any property outside the published tested scope."
     }
   ]
 }

@@ -45,13 +45,18 @@ def make_body(**over):
     f = {
         "Runtime / Product Name": "Acme Agent Runtime",
         "Vendor / Organization": "Acme Inc",
-        "Certification Level Claimed": "SP/1.0-Core (mediation fixtures)",
+        "Certification Level Claimed": "SP/1.0-Full-Runtime (all four official profiles)",
         "SP Version Targeted": "SP/1.0",
-        "Conformance Report": "```shell\n" + GOOD_REPORT + "```",
+        "SP Revision Targeted": "SP/1.0.1",
+        "Exact Version, Immutable Commit, and Artifact Digest": "version v1; commit " + "a" * 40 + "; artifact sha256 " + "b" * 64,
+        "Runtime, Platform, and Configuration Profile": "Python 3.12; Linux x86_64; pinned deps; default test profile",
+        "Official Profile IDs and Fixture Hashes": json.dumps({"profiles": [{"id": p["id"], "fixture_sha256": p["fixture_sha256"], "fixture_bytes": p["fixture_bytes"], "case_count": p["required_vectors"]} for p in json.loads((REPO / "fixtures/certification-profiles.json").read_text())["profiles"]]}),
+        "Immutable Source URL": "https://github.com/acme/runtime/tree/" + "a" * 40,
+        "Complete Conformance and Adversarial Report": "```shell\n" + GOOD_REPORT + "```",
         "Reproducible Evidence URL": "https://github.com/acme/runtime/actions/runs/12345",
         "Attestation": (
             "- [X] I attest this report is genuine and reproducible from the linked evidence.\n"
-            "- [X] I understand listing requires independent verification against the public fixtures."
+            "- [X] I understand listing requires owner review; independent reproductions are welcome after publication."
         ),
     }
     f.update(over)
@@ -66,9 +71,15 @@ def test_parses_a_complete_submission():
     sub = cp.Submission.from_issue_body(make_body())
     assert sub.runtime_name == "Acme Agent Runtime"
     assert sub.vendor == "Acme Inc"
-    assert sub.level == "SP/1.0-Core"
+    assert sub.level == "SP/1.0-Full-Runtime"
+    assert sub.fixture_hashes and len(sub.fixture_hashes) == 4
     assert sub.sp_version == "SP/1.0"
+    assert len(sub.profile_ids) == 4
     assert sub.evidence_url.startswith("https://")
+    assert sub.source_url.startswith("https://")
+    assert len(sub.profile_ids) == 4
+    assert len(sub.version_commit_digest) > 100
+    assert sub.platform_config.startswith("Python")
     assert len(sub.attestations) == 2
 
 
@@ -94,9 +105,9 @@ def test_every_template_dropdown_option_resolves_to_a_level():
 
 def test_bare_canonical_level_is_accepted():
     sub = cp.Submission.from_issue_body(
-        make_body(**{"Certification Level Claimed": "SP/1.0-Sovereign"})
+        make_body(**{"Certification Level Claimed": "SP/1.0-Full-Runtime"})
     )
-    assert sub.level == "SP/1.0-Sovereign"
+    assert sub.level == "SP/1.0-Full-Runtime"
 
 
 # --------------------------------------------------------------------------- #
@@ -116,7 +127,7 @@ def test_missing_fields_are_all_reported_not_just_the_first():
     with pytest.raises(cp.SubmissionError) as ei:
         cp.Submission.from_issue_body(body)
     problems = " ".join(ei.value.problems)
-    for label in ("Vendor / Organization", "Conformance Report", "Reproducible Evidence URL"):
+    for label in ("Vendor / Organization", "Complete Conformance and Adversarial Report", "Reproducible Evidence URL"):
         assert label in problems
 
 
@@ -147,7 +158,7 @@ def test_unreachable_evidence_host_is_rejected():
 def test_empty_or_hand_waved_report_is_rejected():
     with pytest.raises(cp.SubmissionError) as ei:
         cp.Submission.from_issue_body(
-            make_body(**{"Conformance Report": "it works, trust me"})
+            make_body(**{"Complete Conformance and Adversarial Report": "it works, trust me"})
         )
     assert any("report" in p.lower() for p in ei.value.problems)
 
@@ -155,7 +166,7 @@ def test_empty_or_hand_waved_report_is_rejected():
 def test_prose_of_sufficient_length_without_fixture_output_is_rejected():
     padding = "We ran everything and are fully compliant with the specification. " * 2
     with pytest.raises(cp.SubmissionError) as ei:
-        cp.Submission.from_issue_body(make_body(**{"Conformance Report": padding}))
+        cp.Submission.from_issue_body(make_body(**{"Complete Conformance and Adversarial Report": padding}))
     assert any("fixture output" in p for p in ei.value.problems)
 
 
@@ -190,18 +201,18 @@ def test_proposed_entry_carries_the_class_scope_limits_verbatim():
     """A submission cannot talk itself into a broader claim."""
     sub = cp.Submission.from_issue_body(make_body())
     entry = cp.propose_entry(sub, "PASS", "abc1234")
-    assert entry["does_not_verify"] == "Implementation security or production enforcement."
-    assert "maintainer" in entry["verifies"].lower()
+    assert "absolute" in entry["does_not_verify"].lower()
+    assert "owner" in entry["verifies"].lower()
 
 
 def test_submitter_supplied_text_cannot_override_scope_fields():
     hostile = make_body(**{
-        "Vendor / Organization": "Acme Inc",
+        "Vendor / Organization": "Aeon_Dux / Sovereign Logic",
         "Runtime / Product Name": "Acme\", \"does_not_verify\": \"nothing",
     })
     sub = cp.Submission.from_issue_body(hostile)
     entry = cp.propose_entry(sub, "PASS", "abc1234")
-    assert entry["does_not_verify"] == "Implementation security or production enforcement."
+    assert "absolute" in entry["does_not_verify"].lower()
 
 
 # --------------------------------------------------------------------------- #
@@ -241,7 +252,9 @@ def test_bad_date_and_non_https_evidence_are_caught():
 def test_reserved_class_with_entries_is_caught():
     """The registry's prose must not contradict its data."""
     reg = cp.load_registry(REPO / "registry.json")
-    assert "Reserved" in reg["class_definitions"]["certification"]["proves"]
+    # The live registry now has a certification entry. Retest the validator's
+    # reserved-class guard using an isolated intentionally stale definition.
+    reg["class_definitions"]["certification"]["proves"] = "Reserved — no entries yet."
     reg["entries"].append({
         "class": "certification", "name": "X", "vendor": "Y", "level": "SP/1.0-Core",
         "date": "2026-09-13", "evidence": "https://example.net/x",

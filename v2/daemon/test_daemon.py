@@ -94,9 +94,10 @@ class TestShackleIntegration:
             parameters={"arg": "value"}
         )
         
-        # Should allow in fallback mode
-        assert result["decision"] == "ALLOW"
-        assert "fallback" in result["reason"].lower()
+        # Fallback mode is retained for compatibility only; unavailable policy
+        # service must never authorize execution.
+        assert result["decision"] == "DENY"
+        assert result["reason"] == "fail_closed:daemon_unavailable"
         
         await client.close()
 

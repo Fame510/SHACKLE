@@ -1,0 +1,163 @@
+{
+  "schema": "shackle-runtime-adversarial-fixtures-v1",
+  "profile_id": "runtime-adversarial-v1",
+  "spec_revision": "SP/1.0.1",
+  "applies_to": "SHACKLE Python v2 reference runtime and any implementation presenting an equivalent, independently reproducible adapter report",
+  "hashing": "vector_hash is SHA-256 of the vector object excluding vector_hash, encoded as sorted-key compact UTF-8 JSON with ensure_ascii=false and allow_nan=false",
+  "fixtures": [
+    {
+      "id": "runtime.daemon_unavailable",
+      "class": "availability-fail-closed",
+      "test_ref": "tests/test_adversarial_hardening.py::test_daemon_unavailable_denial_prevents_wrapped_tool_dispatch",
+      "expected": "DENY; wrapped action is not invoked",
+      "vector_hash": "7e31eb7518b6429bfe1db2af8cde10f16fd8f9ed17b071a0af9c47fa35e1bc97"
+    },
+    {
+      "id": "runtime.estimator_exception",
+      "class": "cost-boundary",
+      "test_ref": "tests/test_adversarial_hardening.py::test_failing_estimator_does_not_dispatch_wrapped_function",
+      "expected": "no dispatch; cost-estimation error is not coerced to zero",
+      "vector_hash": "afe37e3cf212fc87c1c9a1a18279bbd68b90538abe58ce66bf45c1cc275a4575"
+    },
+    {
+      "id": "runtime.malformed_cost",
+      "class": "cost-boundary",
+      "test_ref": "tests/test_adversarial_hardening.py::test_malformed_cost_estimate_does_not_dispatch_wrapped_function",
+      "expected": "malformed or non-finite cost is denied before authorization",
+      "vector_hash": "66d749758b31baf620739a6e12a27d466446e3fd4f28db78311d0f1a448a573d"
+    },
+    {
+      "id": "runtime.decision_result_malformed",
+      "class": "hostile-decision-producer",
+      "test_ref": "tests/test_adversarial_hardening.py::test_client_denies_bad_daemon_decisions_and_does_not_call_tool",
+      "expected": "unknown, absent, wrong-shaped, or non-string verdict cannot authorize",
+      "vector_hash": "c63b1f828eabfae0bfdb319013709c559e4b280ce85cf7cf8451d7af1c4d2933"
+    },
+    {
+      "id": "runtime.input_custom_container",
+      "class": "hostile-input",
+      "test_ref": "tests/test_adversarial_hardening.py::test_decision_rejects_adversarial_custom_containers_without_invoking_methods",
+      "expected": "DENY without invoking overridden container methods",
+      "vector_hash": "b1c1cb1add8d1e38b6e1c1d9434189f5b8d1cc2a40bad3a54d401920e1e22272"
+    },
+    {
+      "id": "runtime.input_resource_bomb",
+      "class": "hostile-input",
+      "test_ref": "tests/test_adversarial_hardening.py::test_decision_input_limits_bound_node_and_text_bombs",
+      "expected": "oversized text and node-count inputs are denied within configured bounds",
+      "vector_hash": "a0dc17e6a86f9836f5dfd22d71d8c4fef5f4196523680c9604956b70119be477"
+    },
+    {
+      "id": "runtime.redis_unavailable",
+      "class": "policy-store-failure",
+      "test_ref": "tests/test_adversarial_hardening.py::test_state_manager_validates_inputs_before_redis_io",
+      "expected": "DENY; no implicit ALLOW when policy state cannot be read",
+      "vector_hash": "4f13a3e1d36565a2016ff999e7816e8d3bb6d759197c34986c41ef6aabb1c1f4"
+    },
+    {
+      "id": "runtime.redis_malformed_result",
+      "class": "policy-store-failure",
+      "test_ref": "tests/test_adversarial_hardening.py::test_state_manager_rejects_malformed_redis_result",
+      "expected": "DENY on malformed atomic response",
+      "vector_hash": "521db0678ab31e989f8e7354c553ac6258797f07fbc8205f16a0aa206058ec9c"
+    },
+    {
+      "id": "runtime.request_replay",
+      "class": "replay-and-idempotency",
+      "test_ref": "v2/daemon/test_state_atomic.py::test_replayed_request_id_is_denied_without_second_reservation",
+      "expected": "same request ID cannot obtain a second ALLOW or reserve spend twice",
+      "vector_hash": "724288645d83703e6bc1823d112a7b388d99b75492279a14b576c4561e6899a4"
+    },
+    {
+      "id": "runtime.postexec_without_allow",
+      "class": "capability-custody",
+      "test_ref": "v2/daemon/test_state_atomic.py::test_postexec_requires_matching_single_use_capability",
+      "expected": "post-exec without a matching pre-exec capability is rejected",
+      "vector_hash": "2a70cb44f94d550146f5dce715e0e3efcf3aa907060088ec77c1ecae2f1d7788"
+    },
+    {
+      "id": "runtime.postexec_mismatch",
+      "class": "capability-custody",
+      "test_ref": "v2/daemon/test_state_atomic.py::test_postexec_requires_matching_single_use_capability",
+      "expected": "wrong call parameters or request binding cannot consume a capability",
+      "vector_hash": "028ba3654b32008236b1dfd4ae31e90a45f7488ce2b8551a3e5d8838260e3ea5"
+    },
+    {
+      "id": "runtime.postexec_replay",
+      "class": "replay-and-idempotency",
+      "test_ref": "v2/daemon/test_state_atomic.py::test_postexec_requires_matching_single_use_capability",
+      "expected": "post-exec capability and accounting are one-shot",
+      "vector_hash": "35505459e6e116529f8da5f6a70f86b3012514262917ceb242f7af0e300980e1"
+    },
+    {
+      "id": "runtime.concurrent_budget",
+      "class": "race-and-toctou",
+      "test_ref": "v2/daemon/test_state_atomic.py::test_concurrent_different_calls_cannot_overspend_reserved_budget",
+      "expected": "concurrent distinct calls cannot jointly overrun the session budget",
+      "vector_hash": "91cb5e399eb570b24f6e7a53c71b59f0d56caedf88135aff254fb24691c27258"
+    },
+    {
+      "id": "runtime.concurrent_repeat",
+      "class": "race-and-toctou",
+      "test_ref": "v2/daemon/test_state_atomic.py::test_concurrent_calls_are_atomic",
+      "expected": "repeat ceiling is enforced atomically; recorded count equals allowed count",
+      "vector_hash": "40d3572ceb4a9b2fb96701136c5331c3e8bb42cce00267712c179f11064f9d1b"
+    },
+    {
+      "id": "runtime.hitl_auth",
+      "class": "human-approval-authentication",
+      "test_ref": "tests/test_adversarial_hardening.py::test_hitl_response_requires_distinct_authentication",
+      "expected": "approval endpoint requires separate configured authentication",
+      "vector_hash": "b761a7065a289894dcb2d4ea2fdf0ead866fb5412909e5d703ab51e4954b4507"
+    },
+    {
+      "id": "runtime.hitl_binding",
+      "class": "human-approval-binding",
+      "test_ref": "tests/test_adversarial_hardening.py::test_hitl_response_single_use_waiter_and_response_replay_denial",
+      "expected": "approval binds to session and request; mismatched response is rejected",
+      "vector_hash": "2de79184e577ce85565fba9c7b5a38518bdfd777cc0aae6b45cb6cdab366a5e6"
+    },
+    {
+      "id": "runtime.hitl_replay",
+      "class": "human-approval-replay",
+      "test_ref": "tests/test_adversarial_hardening.py::test_hitl_response_single_use_waiter_and_response_replay_denial",
+      "expected": "approval and waiter response are consumed once; replay is denied",
+      "vector_hash": "96bd5cde0710d22e69dd9a88a71365584268faf2765240534452f089bb93aed6"
+    },
+    {
+      "id": "runtime.hitl_race",
+      "class": "human-approval-race",
+      "test_ref": "tests/test_adversarial_hardening.py::test_hitl_wait_is_single_claim_under_concurrency",
+      "expected": "only one waiter may claim a pending approval",
+      "vector_hash": "836bdbb5c6fa4324f5f49b0eae3a28c954b1b31c04adcd1fe3769c0edb08fa20"
+    },
+    {
+      "id": "runtime.websocket_approval_bypass",
+      "class": "alternate-path-bypass",
+      "test_ref": "tests/test_adversarial_hardening.py::test_route_policy_endpoints_are_authenticated",
+      "expected": "WebSocket is notification-only; approval mutation is on separately authenticated HTTP route",
+      "vector_hash": "60bb0a5f3fa1cf8add19dc2673e608fa026e0ba76ed723d101dab2774d65f9ee"
+    },
+    {
+      "id": "runtime.decorator_escape",
+      "class": "wrapper-bypass-surface",
+      "test_ref": "tests/test_adversarial_hardening.py::test_wrapped_function_has_no_public_wrapped_attribute",
+      "expected": "wrapper exposes no direct __wrapped__ escape hatch; arbitrary same-process introspection remains out of scope",
+      "vector_hash": "00f8ee3833d4c53c4318818e069b25d913093df5684736708d354b5aa711b841"
+    },
+    {
+      "id": "runtime.hostile_decision_producer",
+      "class": "hostile-decision-producer",
+      "test_ref": "tests/test_adversarial_hardening.py::test_local_decision_adapter_fails_closed_on_hostile_monkeypatched_producer",
+      "expected": "A monkeypatched decision producer returning malformed ALLOW-shaped data is normalized to DENY before the daemon can issue execution capability.",
+      "vector_hash": "a7ba690e47dd6f931d51ec88d2b1e27bfa568794e309c813147f4924036c35c9"
+    },
+    {
+      "id": "runtime.hitl_budget_reservation",
+      "class": "human-approval-budget-race",
+      "test_ref": "v2/daemon/test_state_atomic.py::test_hitl_approval_reuses_existing_budget_reservation",
+      "expected": "Human approval transfers the existing estimate reservation to a capability without reserving the same cost twice; one execution reconciles actual spend exactly once.",
+      "vector_hash": "13616f35d54aae848eede7b001229228840c3f6aef9d42ec9726ec234b28b0ce"
+    }
+  ]
+}

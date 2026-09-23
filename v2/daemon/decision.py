@@ -57,6 +57,7 @@ def decide_for_daemon(
     max_repeat_calls: int,
     prior_repeat_count: int,
     hitl_mode: str = "never",
+    estimated_cost_usd: float = 0.0,
 ) -> Tuple[Verdict, str]:
     """Produce the verified (verdict, reason) for one pre-exec evaluation.
 
@@ -81,6 +82,7 @@ def decide_for_daemon(
         "circuit_tripped": False,
     }
     call = build_call(tool_name, parameters)
+    call["estimated_cost_usd"] = estimated_cost_usd
     # The daemon enforces whatever this returns, and its decide()
     # may be a vendored or remote copy, so the result is validated here rather
     # than trusted. decide_checked() never raises and never returns a verdict
