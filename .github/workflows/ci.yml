@@ -31,7 +31,7 @@ jobs:
           python -m pip install --upgrade pip
           # Install the package's complete test extra plus the V2 daemon runtime
           # dependencies imported by tests/test_adversarial_hardening.py.
-          pip install -e ".[dev]"
+          pip install -e ".[dev,integration]"
           pip install -r v2/daemon/requirements.txt
       - name: Run conformance + core tests
         run: |
@@ -112,7 +112,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Check latest commit for secret-like files
         run: |
-          if git log -1 --name-only --pretty=format: | grep -qiE '(\.env$|secret|credential|password|_token|api[_-]?key)'; then
+          if git log -1 --name-only --pretty=format: | grep -qiE '(\\.env$|secret|credential|password|_token|api[_-]?key)'; then
             echo "::warning::Potential secret-like filename in commit - review before publishing."
           else
             echo "No secret-like filenames in latest commit."
