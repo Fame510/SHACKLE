@@ -1024,6 +1024,11 @@ def _patch_crewai_hooks(engine: TriggerEngine, state: ExecutionState) -> Optiona
         """Book tokens spent since the last boundary. Raises ShackleInterrupt."""
         if llm is None:
             return
+        if getattr(llm, "is_litellm", False):
+            # CrewAI routed this LLM through litellm: the litellm layer already
+            # books every call. Settling here too counted each call twice and
+            # tripped budgets at half the configured spend.
+            return
         snap = _usage(llm)
         if snap is not None:
             prev = last_usage.get(id(llm), snap)

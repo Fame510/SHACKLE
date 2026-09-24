@@ -182,6 +182,7 @@ def test_inert_guard_is_reported(monkeypatch):
 class _FakeOpenAI(BaseHTTPRequestHandler):
     hits = 0
     vary = False
+    final_after = None
 
     def log_message(self, *a):
         pass
@@ -191,7 +192,7 @@ class _FakeOpenAI(BaseHTTPRequestHandler):
         type(self).hits += 1
         n = type(self).hits
         msg = {"role": "assistant", "content": None}
-        if body.get("tools"):
+        if body.get("tools") and not (type(self).final_after and n >= type(self).final_after):
             q = "latest AI safety research" + (f" #{n}" if type(self).vary else "")
             msg["tool_calls"] = [{"id": f"call_{n}", "type": "function",
                                   "function": {"name": "web_search", "arguments": json.dumps({"query": q})}}]
@@ -215,7 +216,7 @@ def crew_env(monkeypatch):
     monkeypatch.setenv("OTEL_SDK_DISABLED", "true")
     srv = HTTPServer(("127.0.0.1", 0), _FakeOpenAI)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
-    _FakeOpenAI.hits, _FakeOpenAI.vary = 0, False
+    _FakeOpenAI.hits, _FakeOpenAI.vary, _FakeOpenAI.final_after = 0, False, None
     from crewai import Agent, Crew, LLM, Task
     from crewai.tools import tool
     calls = {"n": 0}
@@ -232,7 +233,15 @@ def crew_env(monkeypatch):
                   llm=llm, max_iter=12, verbose=False)
         return Crew(agents=[a], tasks=[Task(description="Research", expected_output="summary", agent=a)],
                     verbose=False)
-    yield types.SimpleNamespace(build=build, calls=calls, server=_FakeOpenAI)
+
+    def build_litellm():
+        llm = LLM(model="openai/gpt-4o", is_litellm=True,
+                  base_url=f"http://127.0.0.1:{srv.server_port}/v1", api_key="x")
+        a = Agent(role="Researcher", goal="research", backstory="x", tools=[web_search],
+                  llm=llm, max_iter=12, verbose=False)
+        return Crew(agents=[a], tasks=[Task(description="Research", expected_output="summary", agent=a)],
+                    verbose=False)
+    yield types.SimpleNamespace(build=build, build_litellm=build_litellm, calls=calls, server=_FakeOpenAI)
     srv.shutdown()
 
 def test_crewai_native_path_loop_of_death_is_stopped(crew_env):
@@ -254,6 +263,30 @@ def test_crewai_native_path_budget_bites_without_repetition(crew_env):
         run()
     assert ei.value.trigger_type == "BUDGET_OVERRUN"
     assert crew_env.calls["n"] <= 3             # was 12: cost only settled on the final turn
+
+def test_crewai_over_litellm_books_each_call_once(crew_env, monkeypatch):
+    """CrewAI's per-turn hooks must not rebook usage already seen by LiteLLM."""
+    crew_env.server.vary = True
+    crew_env.server.final_after = 5
+    booked = []
+    original = TriggerEngine.evaluate_llm_call
+
+    def record_booking(self, model, input_tokens, output_tokens, state):
+        booked.append((input_tokens, output_tokens))
+        return original(self, model, input_tokens, output_tokens, state)
+
+    monkeypatch.setattr(TriggerEngine, "evaluate_llm_call", record_booking)
+
+    @Guard(budget=5, max_repeat_calls=99, timeout_seconds=120)
+    def run():
+        return crew_env.build_litellm().kickoff()
+
+    run()
+    assert crew_env.server.hits == 5
+    assert len(booked) == crew_env.server.hits
+    assert sum(row[0] for row in booked) == crew_env.server.hits * 4000
+    assert sum(row[1] for row in booked) == crew_env.server.hits * 800
+
 
 def test_crewai_hook_internal_error_fails_closed(crew_env, monkeypatch):
     real = TriggerEngine.evaluate_tool_call
