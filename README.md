@@ -18,9 +18,9 @@
 
 These controls improve tested integration paths; SHACKLE is not a universal process sandbox and does not guarantee exact provider invoices or prevent every possible spend overrun. Keep provider-side limits and monitoring enabled.
 
-> **Certification is bound to an exact artifact.** The public registry and [verification report](CERTIFICATION-VERIFICATION-2026-09-23.md) bind the owner-verified reference v2 runtime to commit `d9fb4e3cdebf8a18caa4e14060ac22208a1ea4a6`, its recorded source digest, configuration, date, and four official hash-pinned profiles. Those profiles contain 15 + 14 + 31 + 22 = **82 cases**. Later hardening at `e93ef3c3060ea787e0d978fefcfa08e93eb0f79b` passed its own local tests and GitHub CI; it has **not** been rebound to the earlier certification entry or verified as the certified artifact. A profile pass is evidence for its named tests and artifact—not a guarantee of absolute security, production enforcement, legal sufficiency, or absence of vulnerabilities.
+> **Certification is bound to an exact artifact.** The public registry and [verification report](CERTIFICATION-VERIFICATION-2026-09-23.md) now bind the owner-verified reference v2 runtime to commit `a45eaa863a7d2afb0847ce81d0952737abdf98fa` and source archive SHA-256 `9aef63709dd0d8241398c0bea095521e5258067d0caca3ca24e1b9dc0fe078cd`, with the four official hash-pinned profiles (15 + 14 + 31 + 22 = **82 cases**). This is owner self-verification of that artifact and stated scope—not an independent certification or a guarantee of absolute security, production enforcement, legal sufficiency, or absence of vulnerabilities.
 
-> **Verification of the latest hardening commit:** reported local runs were **322 passed** from `tests/` and **393 passed** from the repository root. GitHub Actions [SHACKLE CI run 35928877645](https://github.com/Fame510/SHACKLE/actions/runs/35928877645) completed with all five jobs passing (Python 3.10–3.12, v2 daemon, secret scan). [Certification Verify run 35928877761](https://github.com/Fame510/SHACKLE/actions/runs/35928877761) passed conformance and registry checks; its separate `verify` job was skipped. The [Pages build/deploy run 35928875242](https://github.com/Fame510/SHACKLE/actions/runs/35928875242) succeeded.
+> **Fresh verification after the CrewAI/LiteLLM accounting fix:** `pytest tests/` passed **323 tests**; the repository-root suite passed **394 tests**; `tools/verify_certification.py` returned **PASS** on `a45eaa863a7d2afb0847ce81d0952737abdf98fa`; registry validation passed. The independent reviewer’s regression scenario was also reproduced: five fake provider requests yielded five accounting events, not ten. Earlier GitHub CI [run 35928877645](https://github.com/Fame510/SHACKLE/actions/runs/35928877645) passed all five jobs on the preceding runtime hardening commit `e93ef3c`; that CI result is not a CI claim for `a45eaa8`.
 
 > **Publication record.** First release commit **2026-06-17** (`9fbf7c3a`); V2 foundation **2026-06-18**. SP/1.0 specification published **2026-06-24**; SP/1.0.1 implementation tightening **2026-07-30**. The original 15-vector surface has historical independent reproductions from July 4 and July 29. See **[PROVENANCE.md](PROVENANCE.md)** for dates, commits, attribution, and boundaries.
 
@@ -123,7 +123,7 @@ The front page keeps it short on purpose. Full detail lives in focused docs:
 - **[CONFORMANCE.md](CONFORMANCE.md)** — the SP/1.0 decision surface and conformance model.
 - **[v2/README.md](v2/README.md)** — sidecar daemon architecture and setup.
 
-The 322/393 suite counts above describe the later runtime-hardening commit; they do not replace or amend the earlier certification report. For the certification claim, use its own pinned implementation, profile manifest and verification report.
+The 323/394 suite counts above and the fresh certification verification apply to the corrected source commit `a45eaa863a7d2afb0847ce81d0952737abdf98fa`; the earlier `d9fb4e3` result is retained in the report as historical context.
 
 ---
 

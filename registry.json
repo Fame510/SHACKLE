@@ -6,8 +6,37 @@
   "certification_policy": "CERTIFICATION.md",
   "fixture_manifest": "fixtures/certification-profiles.json",
   "certification_entry_schema": {
-    "required_fields": ["class", "name", "vendor", "level", "version", "commit", "artifact_digest", "date", "date_verified", "expires_on", "profile_ids", "fixture_hashes", "test_report_url", "evidence", "source_url", "verifier", "owner_approval", "scope", "exclusions", "status", "verifies", "does_not_verify"],
-    "status_values": ["active", "superseded", "expired", "suspended", "revoked"],
+    "required_fields": [
+      "class",
+      "name",
+      "vendor",
+      "level",
+      "version",
+      "commit",
+      "artifact_digest",
+      "date",
+      "date_verified",
+      "expires_on",
+      "profile_ids",
+      "fixture_hashes",
+      "test_report_url",
+      "evidence",
+      "source_url",
+      "verifier",
+      "owner_approval",
+      "scope",
+      "exclusions",
+      "status",
+      "verifies",
+      "does_not_verify"
+    ],
+    "status_values": [
+      "active",
+      "superseded",
+      "expired",
+      "suspended",
+      "revoked"
+    ],
     "binding_rule": "Certification attaches only to the exact version, commit, artifact digest, environment/configuration, and fixture hashes recorded in the entry. Material changes require fresh verification."
   },
   "license": "Registry data and the SP/1.0 specification + fixtures are CC BY 4.0 (see LICENSE-SPEC.md). © 2026 Dante Bullock.",
@@ -65,13 +94,18 @@
       "name": "SHACKLE Reference Python v2 Runtime",
       "vendor": "Aeon_Dux / Sovereign Logic",
       "level": "SP/1.0-Full-Runtime",
-      "version": "SHACKLE Python v2 reference runtime at commit d9fb4e3cdebf8a18caa4e14060ac22208a1ea4a6",
-      "commit": "d9fb4e3cdebf8a18caa4e14060ac22208a1ea4a6",
-      "artifact_digest": "SHA-256: 7280fcb919a761f3fb7add8b7cfa7c2e8f7de62886ee9979786345216e2fcb48",
+      "version": "SHACKLE Python v2 reference runtime at commit a45eaa863a7d2afb0847ce81d0952737abdf98fa",
+      "commit": "a45eaa863a7d2afb0847ce81d0952737abdf98fa",
+      "artifact_digest": "SHA-256: 9aef63709dd0d8241398c0bea095521e5258067d0caca3ca24e1b9dc0fe078cd",
       "date": "2026-09-23",
       "date_verified": "2026-09-23",
       "expires_on": "2027-09-23",
-      "profile_ids": ["decision-surface-v1", "sp101-adversarial-input-v1", "decision-result-hardening-v1", "runtime-adversarial-v1"],
+      "profile_ids": [
+        "decision-surface-v1",
+        "sp101-adversarial-input-v1",
+        "decision-result-hardening-v1",
+        "runtime-adversarial-v1"
+      ],
       "fixture_hashes": {
         "decision-surface-v1": "6553a1bced5ccab8c4c4f14d2f8a7c255383c2d5342a9a0fae375eab92a3e8da",
         "sp101-adversarial-input-v1": "f9655ab7681edb5423cebfc39685ef1622c914009939bb2cba1e29e5028183d7",
@@ -79,14 +113,14 @@
         "runtime-adversarial-v1": "61243c33a666368e6246a2adfa500fe4658984c3156a4fba1350c78dec29b1b2"
       },
       "test_report_url": "https://github.com/Fame510/SHACKLE/blob/master/CERTIFICATION-VERIFICATION-2026-09-23.md",
-      "evidence": "https://github.com/Fame510/SHACKLE/commit/d9fb4e3cdebf8a18caa4e14060ac22208a1ea4a6",
-      "source_url": "https://github.com/Fame510/SHACKLE/tree/d9fb4e3cdebf8a18caa4e14060ac22208a1ea4a6",
+      "evidence": "https://github.com/Fame510/SHACKLE/commit/a45eaa863a7d2afb0847ce81d0952737abdf98fa",
+      "source_url": "https://github.com/Fame510/SHACKLE/tree/a45eaa863a7d2afb0847ce81d0952737abdf98fa",
       "verifier": "repository owner self-verification",
       "owner_approval": "approved by explicit owner direction in project chat",
-      "scope": "Full published conformance and runtime-adversarial profile battery for the reference Python v2 daemon/client. Local full suite passed 365 tests, zero failures, on 2026-09-23.",
+      "scope": "Full published conformance and runtime-adversarial profile battery for the reference Python v2 daemon/client. On 2026-09-23, pytest tests/ passed 323 tests and the repository-root suite passed 394 tests with zero failures; tools/verify_certification.py returned PASS on this exact implementation commit. The four official fixture hashes are recorded in this entry.",
       "exclusions": "No absolute security guarantee. Excludes hostile OS/kernel/hypervisor, arbitrary hostile code already executing in-process, unknown attacks and other exclusions in CERTIFICATION.md.",
       "status": "active",
-      "verifies": "The reference implementation passed every required official profile locally with the exact hashes recorded here, as of the stated verification date. Independent parties are invited to reproduce against the public artifacts after publication.",
+      "verifies": "The reference implementation at the exact commit and artifact digest above passed every required official profile locally with the exact hashes recorded here, as of the stated verification date. Independent parties are invited to reproduce against the public artifacts after publication.",
       "does_not_verify": "Absolute safety, hostile operating-system/kernel control, or any property outside the published tested scope."
     }
   ]

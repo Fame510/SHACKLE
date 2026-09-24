@@ -1013,7 +1013,7 @@
         </div>
         <div class="standard-card">
           <h4>Verification Record</h4>
-          <p>The registry binds the owner-verified reference runtime to an exact source commit, archive digest, configuration, date, profiles, and exclusions.</p>
+          <p>The registry binds the owner-verified reference runtime to commit a45eaa8, its archive digest, configuration, four profile hashes, and stated exclusions. Fresh runs: 323 tests in `tests/`, 394 at repo root, verifier PASS.</p>
         </div>
       </div>
 
@@ -1021,7 +1021,7 @@
         <strong>Core invariant:</strong> <em>history-visible &ne; runtime-executable.</em> A record that an action happened is not proof that the transition was supported. Conformance is evaluated against the named public fixtures and the exact result is reproducible.
       </p>
       <p class="section-intro" style="margin-top:1rem; font-size:.92rem; opacity:.8;">
-        <strong>Scope boundary:</strong> the current registry verification binds to reference-runtime commit <code>d9fb4e3cdebf8a18caa4e14060ac22208a1ea4a6</code>. Later hardening at <code>e93ef3c3060ea787e0d978fefcfa08e93eb0f79b</code> has separate passing local tests and green CI; the certification record has not been silently transferred to that later commit. This is evidence for named profiles and artifacts, not a guarantee of absolute security, all deployments, legal outcome, or absence of unknown vulnerabilities.
+        <strong>Scope boundary:</strong> the registry now binds the owner-verified reference runtime to commit <code>a45eaa863a7d2afb0847ce81d0952737abdf98fa</code> and its recorded source archive digest, after fresh verification of all four unchanged, hash-pinned profiles. The independent reviewer’s CrewAI-over-LiteLLM regression was reproduced and corrected; that specific reproduction is not an independent rerun of the full profile battery. This is evidence for named profiles and artifacts, not a guarantee of absolute security, all deployments, legal outcome, or absence of unknown vulnerabilities.
       </p>
       <div style="text-align:center; margin-top:2rem;">
         <a href="https://github.com/Fame510/SHACKLE/blob/master/CERTIFICATION.md" class="btn btn-primary">Read Certification Policy &rarr;</a>
@@ -1093,7 +1093,7 @@
   <div class="standard-grid" style="margin-top:28px;">
     <div class="standard-card">
       <h4>Independent historical review</h4>
-      <p>@nutstrut reproduced earlier fixture surfaces. His September SP/1.0.1 rerun identified two qualifications, which were addressed in a public follow-up. The four-profile certification still awaits any independent reproduction. <a href="https://github.com/Fame510/SHACKLE/issues/13#issuecomment-5707578677" style="color:var(--orange);">Review record</a> · <a href="https://github.com/Fame510/SHACKLE/issues/13#issuecomment-5802831246" style="color:var(--orange);">Voluntary invitation</a>.</p>
+      <p>@nutstrut reproduced earlier fixture surfaces. His September SP/1.0.1 rerun identified two qualifications, which were addressed in a public follow-up. The four-profile result is owner-verified on the corrected artifact; the independent review reproduced the specific accounting regression but did not rerun the full profile battery. <a href="https://github.com/Fame510/SHACKLE/issues/13#issuecomment-5707578677" style="color:var(--orange);">Review record</a> · <a href="https://github.com/Fame510/SHACKLE/issues/13#issuecomment-5802831246" style="color:var(--orange);">Voluntary invitation</a>.</p>
     </div>
     <div class="standard-card">
       <h4>Reference certification record</h4>
@@ -1101,7 +1101,7 @@
     </div>
     <div class="standard-card">
       <h4>Latest hardening CI</h4>
-      <p>The later hardening commit has a separate <a href="https://github.com/Fame510/SHACKLE/actions/runs/35928877645" style="color:var(--orange);">green five-job CI run</a>. This CI result is not a certification rebind of the earlier registry artifact.</p>
+      <p>The corrected runtime commit has a <a href="https://github.com/Fame510/SHACKLE/actions/runs/35953824334" style="color:var(--orange);">green five-job CI run</a>; Certification Verify and Pages deployment also succeeded on that source commit. The results are scoped to the named artifact and tests.</p>
     </div>
     <div class="standard-card">
       <h4>The failure is documented</h4>

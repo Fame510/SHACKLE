@@ -1,32 +1,31 @@
 # SHACKLE reference runtime verification record
 
 **Verification date:** 2026-09-23  
-**Tested implementation commit:** `d9fb4e3cdebf8a18caa4e14060ac22208a1ea4a6`  
-**Source archive SHA-256:** `7280fcb919a761f3fb7add8b7cfa7c2e8f7de62886ee9979786345216e2fcb48`  
-**Registry correction commit:** `7cdb3615dfaa8fa3c9e807917d19029015019f14` (metadata-only registry update; no runtime source changes)  
-**Environment:** Python 3.12.12; Linux 6.1.158+ x86_64  
+**Tested implementation commit:** `a45eaa863a7d2afb0847ce81d0952737abdf98fa`
+**Source archive SHA-256:** `9aef63709dd0d8241398c0bea095521e5258067d0caca3ca24e1b9dc0fe078cd`
+**GitHub Actions on this commit:** [SHACKLE CI 35953824334](https://github.com/Fame510/SHACKLE/actions/runs/35953824334), [Certification Verify 35953824332](https://github.com/Fame510/SHACKLE/actions/runs/35953824332), [Pages deployment 35953823384](https://github.com/Fame510/SHACKLE/actions/runs/35953823384) — all completed successfully
 **Verifier:** repository owner, local self-verification
 
-## Result
+## Current corrected artifact
 
-Fresh full-suite runs were made against the tested implementation commit and again against `master` after the registry binding correction:
-
-```text
-Tested implementation commit d9fb4e3cdebf8a18caa4e14060ac22208a1ea4a6:
-365 passed, 34 warnings in 9.84s
-
-Post-registry-correction master commit 7cdb3615dfaa8fa3c9e807917d19029015019f14:
-365 passed, 34 warnings in 9.37s
-```
-
-The 34 warnings were existing deprecations from licensing/FastAPI/Redis test paths; there were no failed or skipped tests. The suite includes conformance, daemon, approval-flow, malformed-boundary, replay/capability, race/budget, certification-pipeline, and adversarial tests. Profile file and vector seals are checked by the tests. The certification entry binds to the immutable implementation source commit above; its source archive digest is computed from that commit. The later registry correction changed metadata only and points to that tested source commit.
-
-The registry validation also passed on the post-correction master tree:
+The registry and this report bind the current owner-verified result to the exact implementation commit and source archive above. Fresh verification was run after that source commit existed:
 
 ```text
+pytest tests/             323 passed, 0 failed
+pytest (repository root)  394 passed, 0 failed
+python tools/verify_certification.py
+PASS — commit a45eaa863a7d2afb0847ce81d0952737abdf98fa
 python tools/certification_pipeline.py validate-registry registry.json
 registry OK
 ```
+
+The independent reviewer found that CrewAI hooks and LiteLLM both booked usage for the same CrewAI LLM when it was explicitly routed through LiteLLM. The live regression reproduced the pre-fix behavior: five fake provider requests generated ten SHACKLE accounting events and booked 40,000 input tokens. On the corrected code it records exactly five events for five requests: 20,000 input tokens and 4,000 output tokens total. The fix skips CrewAI settlement for an LLM marked `is_litellm`; the LiteLLM accounting layer remains the single booking source for that route.
+
+The four official profile IDs, case counts, and fixture hashes below are unchanged. This is owner self-verification of the named artifact and profiles, not an independent reviewer certification; the reviewer’s specific reproduction of the accounting regression is recorded separately from the profile verification claim.
+
+## Earlier certification checkpoint (historical)
+
+The earlier reference artifact at `d9fb4e3cdebf8a18caa4e14060ac22208a1ea4a6`, source archive SHA-256 `7280fcb919a761f3fb7add8b7cfa7c2e8f7de62886ee9979786345216e2fcb48`, passed 365 tests in the earlier full-suite runs. Registry correction commit `7cdb3615dfaa8fa3c9e807917d19029015019f14` changed metadata only at that stage. Those results are historical and are superseded as the current certification binding by `a45eaa863a7d2afb0847ce81d0952737abdf98fa`.
 
 ## Required profile IDs and exact fixture hashes
 
