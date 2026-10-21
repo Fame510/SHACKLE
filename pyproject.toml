@@ -32,7 +32,14 @@ dev = [
     "httpx>=0.24.0",
 ]
 integration = [
-    "litellm>=1.40",
+    # Pinned 2026-10-21: litellm >=1.106 imports CacheableResult from mcp.types
+    # (mcp 2.x only) in its proxy MCP catalog, while crewai pins mcp to the 1.x
+    # line (mcp~=1.28.1) - the two cannot coexist and the crewAI-over-litellm
+    # coverage test dies on the import. 1.102.1 is the last litellm verified
+    # clean against mcp 1.x (whole wheel checked: zero CacheableResult
+    # references; it is also the version the green 2026-09-24 CI run used).
+    # Revisit when crewai supports mcp 2.x.
+    "litellm==1.102.1",
     "langchain-core>=0.2",
     "langgraph>=0.2",
     "crewai>=1.5",
