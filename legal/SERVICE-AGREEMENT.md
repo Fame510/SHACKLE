@@ -8,7 +8,7 @@
 Sovereign Logic  
 Represented by: Dante Bullock  
 Email: docspoc101@gmail.com  
-GitHub: https://github.com/Fame510/SHACKLE-PRO-
+GitHub: https://github.com/Fame510/SHACKLE
 
 **Client:**  
 Name: _________________________________  
