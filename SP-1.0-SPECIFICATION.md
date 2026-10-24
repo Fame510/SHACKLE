@@ -8,7 +8,7 @@
 **Authors:** Dante Bullock, Sovereign Logic  
 **License:** Creative Commons Attribution 4.0 International (CC-BY 4.0) — see [LICENSE-SPEC.md](./LICENSE-SPEC.md)  
 **Reference Implementation:** <https://github.com/Fame510/SHACKLE>  
-**First Public Commit:** 2026-06-17 23:12 UTC  
+**First Public Commit:** 2026-06-17 01:42 UTC  
 
 > **License:** This specification and its conformance fixtures are licensed under
 > [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) —
