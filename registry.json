@@ -1,7 +1,7 @@
 {
   "sp_version": "SP/1.0",
   "schema_version": "4",
-  "updated": "2026-10-21",
+  "updated": "2026-10-24",
   "note": "Public SHACKLE registry. Each claim is bound to an exact implementation, artifact, environment, fixture hashes, and stated scope; certification is not an absolute safety guarantee.",
   "certification_policy": "CERTIFICATION.md",
   "fixture_manifest": "fixtures/certification-profiles.json",
@@ -132,6 +132,16 @@
       "status": "active",
       "verifies": "The reference implementation at the exact commit and artifact digest above passed every required official profile locally with the exact hashes recorded here, as of the stated verification date. Independent parties are invited to reproduce against the public artifacts after publication.",
       "does_not_verify": "Absolute safety, hostile operating-system/kernel control, or any property outside the published tested scope."
+    },
+    {
+      "class": "independent_reproduction",
+      "party": "@nutstrut (independent developer)",
+      "date": "2026-10-22",
+      "surface": "SP/1.0.1 published certification battery at certification reference d9fb4e3cdebf8a18caa4e14060ac22208a1ea4a6 \u2014 completion of the 7 Redis-backed runtime-adversarial-v1 cases that were not executable in the reviewer's September 24 run. Full battery now 82/82 independently reproduced.",
+      "verifies": "Independent reproduction of the published certification battery, now complete: the 75/82 September 24 run plus the 7 previously-unverified Redis-backed runtime-adversarial-v1 cases (runtime.request_replay, runtime.postexec_without_allow, runtime.postexec_mismatch, runtime.postexec_replay, runtime.concurrent_budget, runtime.concurrent_repeat, runtime.hitl_budget_reservation), each exercised by a distinct assertion \u2014 82 of 82 published certification cases reproduced. Environment: Linux x86_64, Python 3.10.12, Redis 6.0.16 as a single local instance on 127.0.0.1 (empty, non-persistent test DB), redis-py 8.1.0, pytest 9.1.1. SHACKLE source pinned to certification reference d9fb4e3cdebf8a18caa4e14060ac22208a1ea4a6; all four published fixture SHA-256 hashes matched the certification manifest. Redis-backed state suite: 9 passed, 0 failed, 0 skipped. tools/verify_certification.py in the Redis-enabled environment: 365 passed, status PASS.",
+      "does_not_verify": "Per the verifier's own scope: does not establish exclusive capability custody, hostile-host bypass resistance, mandatory mediation across every possible path, production enforcement, hostile OS/kernel/hypervisor resistance, alternate-path exclusion, distributed Redis correctness, arbitrary exactly-once external effects, supply-chain security, or absence of unknown vulnerabilities. Independent reproduction only \u2014 does not imply certification ownership, partnership, production assurance, or adoption of SHACKLE by Default Settlement.",
+      "evidence": "https://github.com/Fame510/SHACKLE/issues/13#issuecomment-6349090423",
+      "permission": "Scope and classification stated verbatim from the verifier's public statement (SHACKLE#13, comment 6349090423); correction or withdrawal honored on request."
     }
   ]
 }
